@@ -160,10 +160,10 @@ export default function StatsPage() {
                     <Line 
                       type="monotone" 
                       dataKey="value" 
-                      stroke="#f0f0fa" 
+                      stroke="#0653b6" 
                       strokeWidth={2}
-                      dot={{ fill: "#f0f0fa", strokeWidth: 0, r: 3 }}
-                      activeDot={{ r: 5, fill: "#f0f0fa" }}
+                      dot={{ fill: "#0653b6", strokeWidth: 0, r: 3 }}
+                      activeDot={{ r: 5, fill: "#0653b6" }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -198,10 +198,10 @@ export default function StatsPage() {
                     <Line 
                       type="monotone" 
                       dataKey="value" 
-                      stroke="#f0f0fa"
+                      stroke="#0653b6"
                       strokeWidth={2}
-                      dot={{ fill: "#f0f0fa", strokeWidth: 0, r: 3 }}
-                      activeDot={{ r: 5, fill: "#f0f0fa" }}
+                      dot={{ fill: "#0653b6", strokeWidth: 0, r: 3 }}
+                      activeDot={{ r: 5, fill: "#0653b6" }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
