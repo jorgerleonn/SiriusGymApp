@@ -82,3 +82,77 @@ export async function deleteWorkout(workoutId: string) {
 
   return { success: true };
 }
+
+export async function updateWorkout(
+  workoutId: string, 
+  name: string, 
+  exercises: { name: string; sets: { weight: number; reps: number; order_index: number }[] }[]
+) {
+  const { userId } = await auth();
+  if (!userId) return { error: "No autorizado" };
+
+  if (!name.trim()) return { error: "El nombre es requerido" };
+
+  const supabase = createSupabaseAdmin();
+
+  // Update workout name
+  const { error: updateError } = await supabase
+    .from("workouts")
+    .update({ name: name.trim() })
+    .eq("id", workoutId)
+    .eq("user_id", userId);
+
+  if (updateError) {
+    console.error("Error updating workout:", updateError);
+    return { error: updateError.message };
+  }
+
+  // Get existing exercises to compare
+  const { data: existingExercises } = await supabase
+    .from("exercises")
+    .select("id")
+    .eq("workout_id", workoutId);
+
+  const existingExerciseIds = existingExercises?.map(e => e.id) || [];
+
+  // Delete all existing exercises (cascade deletes sets)
+  for (const exId of existingExerciseIds) {
+    await supabase.from("exercises").delete().eq("id", exId);
+  }
+
+  // Insert new exercises
+  for (let i = 0; i < exercises.length; i++) {
+    const ex = exercises[i];
+    if (!ex.name.trim() || ex.sets.length === 0) continue;
+
+    const { data: exercise, error: exError } = await supabase
+      .from("exercises")
+      .insert({ workout_id: workoutId, name: ex.name.trim(), order_index: i })
+      .select()
+      .single();
+
+    if (exError || !exercise) {
+      console.error("Error creating exercise:", exError);
+      continue;
+    }
+
+    for (let j = 0; j < ex.sets.length; j++) {
+      const set = ex.sets[j];
+      if (set.weight <= 0 || set.reps <= 0) continue;
+
+      await supabase.from("sets").insert({
+        exercise_id: exercise.id,
+        weight: set.weight,
+        reps: set.reps,
+        order_index: j,
+      });
+    }
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/history");
+  revalidatePath("/stats");
+  revalidatePath(`/workout/${workoutId}`);
+
+  return { success: true };
+}
