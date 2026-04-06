@@ -1,5 +1,5 @@
 import { getWorkouts } from "@/lib/queries";
-import { Dumbbell, TrendingUp, Calendar, ChevronRight } from "lucide-react";
+import { Dumbbell, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 export default async function DashboardPage() {
@@ -14,90 +14,71 @@ export default async function DashboardPage() {
   }).length;
 
   return (
-    <div className="max-w-4xl">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-sirius-text mb-1 sm:mb-2">Dashboard</h1>
-        <p className="text-sm sm:text-base text-sirius-textMuted">Bienvenido de vuelta</p>
+    <div>
+      {/* Header - Text on background, no container */}
+      <div className="mb-10 pt-4">
+        <h1 className="text-[2rem] font-bold text-space-spectral mb-2 tracking-[0.96px]">Dashboard</h1>
+        <p className="text-space-spectral/60 text-[0.875rem]" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Bienvenido de vuelta</p>
       </div>
 
-      {/* Stats - Responsive Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-        <div className="bg-sirius-surface border border-sirius-border rounded-2xl p-4 sm:p-6">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="p-2 sm:p-3 bg-sirius-accent/10 rounded-xl shrink-0">
-              <Dumbbell className="w-5 h-5 sm:w-6 sm:h-6 text-sirius-accent" />
-            </div>
-            <div>
-              <p className="text-xl sm:text-2xl font-bold text-sirius-text">{totalWorkouts}</p>
-              <p className="text-xs sm:text-sm text-sirius-textMuted">Total workouts</p>
-            </div>
-          </div>
+      {/* Stats - Grid with dividers */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-space-ghost-border mb-8">
+        <div className="bg-space-black p-6">
+          <p className="text-[0.625rem] text-space-spectral/50 mb-1 tracking-[1px] uppercase">Total Workouts</p>
+          <p className="text-[2rem] font-bold text-space-spectral tracking-[0.96px]">{totalWorkouts}</p>
         </div>
-        <div className="bg-sirius-surface border border-sirius-border rounded-2xl p-4 sm:p-6">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="p-2 sm:p-3 bg-green-500/10 rounded-xl shrink-0">
-              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
-            </div>
-            <div>
-              <p className="text-xl sm:text-2xl font-bold text-sirius-text">{thisWeek}</p>
-              <p className="text-xs sm:text-sm text-sirius-textMuted">Esta semana</p>
-            </div>
-          </div>
+        <div className="bg-space-black p-6">
+          <p className="text-[0.625rem] text-space-spectral/50 mb-1 tracking-[1px] uppercase">Esta Semana</p>
+          <p className="text-[2rem] font-bold text-space-spectral tracking-[0.96px]">{thisWeek}</p>
         </div>
-        <div className="bg-sirius-surface border border-sirius-border rounded-2xl p-4 sm:p-6">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="p-2 sm:p-3 bg-purple-500/10 rounded-xl shrink-0">
-              <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500" />
-            </div>
-            <div>
-              <p className="text-lg sm:text-2xl font-bold text-sirius-text">
-                {workouts[0]?.date ? new Date(workouts[0].date).toLocaleDateString("es-ES", { month: "short", day: "numeric" }) : "-"}
-              </p>
-              <p className="text-xs sm:text-sm text-sirius-textMuted">Último workout</p>
-            </div>
-          </div>
+        <div className="bg-space-black p-6">
+          <p className="text-[0.625rem] text-space-spectral/50 mb-1 tracking-[1px] uppercase">Último Workout</p>
+          <p className="text-[1.5rem] font-bold text-space-spectral tracking-[0.96px]">
+            {workouts[0]?.date ? new Date(workouts[0].date).toLocaleDateString("es-ES", { month: "short", day: "numeric" }) : "-"}
+          </p>
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="mb-6 sm:mb-8">
-        <Link href="/workout/new" className="block w-full bg-sirius-accent text-sirius-bg font-semibold 
-          py-3 sm:py-4 rounded-xl text-center hover:bg-sirius-star transition-all duration-300 shadow-glow text-sm sm:text-base">
+      {/* CTA Button */}
+      <div className="mb-8">
+        <Link href="/workout/new" className="inline-block px-6 py-3 bg-space-ghost border border-space-ghost-border rounded-ghost text-space-spectral hover:bg-[rgba(240,240,250,0.2)] transition-all duration-300 text-[0.75rem] font-bold tracking-[1.17px]">
           + Nuevo Entrenamiento
         </Link>
       </div>
 
-      {/* Recent Workouts */}
+      {/* Recent Workouts - List with dividers */}
       <div>
-        <h2 className="text-lg sm:text-xl font-semibold text-sirius-text mb-3 sm:mb-4">Entrenamientos Recientes</h2>
-        <div className="space-y-3">
-          {workouts.length === 0 ? (
-            <div className="text-center py-10 sm:py-12 text-sirius-textMuted">
-              <Dumbbell className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 opacity-30" />
-              <p className="text-sm sm:text-base mb-2">No hay workouts todavía</p>
-              <Link href="/workout/new" className="text-sm sm:text-base text-sirius-accent hover:underline">
-                Crea tu primer entrenamiento
-              </Link>
-            </div>
-          ) : (
-            workouts.slice(0, 5).map((workout) => (
-              <Link key={workout.id} href={`/history`} 
-                className="block bg-sirius-surface border border-sirius-border rounded-xl p-3 sm:p-4 
-                hover:border-sirius-accent/30 transition-all"
+        <h2 className="text-[1rem] font-bold text-space-spectral mb-4 tracking-[0.96px]">Entrenamientos Recientes</h2>
+        
+        {workouts.length === 0 ? (
+          <div className="text-center py-12">
+            <Dumbbell className="w-12 h-12 text-space-spectral/30 mx-auto mb-4" />
+            <p className="text-space-spectral/60 text-[0.875rem]" style={{ textTransform: 'none', letterSpacing: 'normal' }}>No hay workouts todavía</p>
+            <Link href="/workout/new" className="text-space-spectral hover:underline inline-block mt-2 text-[0.875rem]" style={{ textTransform: 'none', letterSpacing: 'normal' }}>
+              Crea tu primer entrenamiento
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-px bg-space-ghost-border">
+            {workouts.slice(0, 5).map((workout) => (
+              <Link 
+                key={workout.id} 
+                href={`/history`} 
+                className="block bg-space-black py-4 px-4 hover:bg-space-ghost transition-colors group"
               >
                 <div className="flex justify-between items-center">
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-semibold text-sirius-text text-sm sm:text-base truncate">{workout.name}</h3>
-                    <p className="text-xs sm:text-sm text-sirius-textMuted">
+                    <h3 className="text-[0.8125rem] font-bold text-space-spectral tracking-[1.17px] truncate">{workout.name}</h3>
+                    <p className="text-[0.625rem] text-space-spectral/50 mt-1" style={{ textTransform: 'none', letterSpacing: 'normal' }}>
                       {workout.exercises?.length || 0} ejercicios • {new Date(workout.date).toLocaleDateString("es-ES")}
                     </p>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-sirius-accent shrink-0 ml-2" />
+                  <ChevronRight className="w-5 h-5 text-space-spectral/50 group-hover:text-space-spectral transition-colors shrink-0 ml-2" />
                 </div>
               </Link>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

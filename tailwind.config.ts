@@ -10,33 +10,30 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        sirius: {
-          bg: "#0a0a0f",
-          surface: "#12121a",
-          surfaceElevated: "#1a1a24",
-          border: "#2a2a3a",
-          text: "#f0f0f5",
-          textMuted: "#8888a0",
-          accent: "#00d4ff",
-          accentGlow: "#00d4ff40",
-          star: "#ffffff",
-          success: "#22c55e",
-          warning: "#f59e0b",
-          danger: "#ef4444",
+        space: {
+          black: "#000000",
+          spectral: "#f0f0fa",
+          ghost: "rgba(240, 240, 250, 0.1)",
+          "ghost-border": "rgba(240, 240, 250, 0.35)",
+          overlay: "rgba(0, 0, 0, 0.5)",
         },
       },
-      boxShadow: {
-        glow: "0 0 20px #00d4ff40",
-        glowSm: "0 0 10px #00d4ff20",
+      fontFamily: {
+        display: ["D-DIN-Bold", "D-DIN", "Arial", "Verdana", "sans-serif"],
+        body: ["D-DIN", "Arial", "Verdana", "sans-serif"],
       },
-      animation: {
-        "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+      fontSize: {
+        display: ["3rem", { lineHeight: "1.00", letterSpacing: "0.96px" }],
+        hero: ["3rem", { lineHeight: "1.00", letterSpacing: "0.96px" }],
+        nav: ["0.81rem", { lineHeight: "0.94", letterSpacing: "1.17px" }],
+        navsmall: ["0.75rem", { lineHeight: "2.00", letterSpacing: "normal" }],
+        caption: ["0.81rem", { lineHeight: "0.94", letterSpacing: "1.17px" }],
+        micro: ["0.63rem", { lineHeight: "0.94", letterSpacing: "1px" }],
+        body: ["1rem", { lineHeight: "1.50", letterSpacing: "normal" }],
       },
-      keyframes: {
-        "pulse-glow": {
-          "0%, 100%": { boxShadow: "0 0 20px #00d4ff40" },
-          "50%": { boxShadow: "0 0 40px #00d4ff60" },
-        },
+      borderRadius: {
+        ghost: "32px",
+        sharp: "4px",
       },
     },
   },

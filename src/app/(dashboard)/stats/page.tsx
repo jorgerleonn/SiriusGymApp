@@ -11,7 +11,7 @@ import {
   Tooltip, 
   ResponsiveContainer 
 } from "recharts";
-import { Dumbbell, TrendingUp, BarChart3, Activity } from "lucide-react";
+import { Dumbbell, TrendingUp, BarChart3 } from "lucide-react";
 
 interface chartData {
   date: string;
@@ -66,7 +66,7 @@ export default function StatsPage() {
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-sirius-textMuted">Cargando...</div>
+        <div className="text-space-spectral/50 text-[0.75rem] tracking-[1px] uppercase">Cargando...</div>
       </div>
     );
   }
@@ -79,9 +79,9 @@ export default function StatsPage() {
   const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-sirius-surface border border-sirius-border rounded-lg p-2 sm:p-3 shadow-lg">
-          <p className="text-sirius-textMuted text-xs mb-1">{label}</p>
-          <p className="text-sirius-accent font-semibold text-sm sm:text-base">{payload[0].value?.toLocaleString()} kg</p>
+        <div className="bg-space-black border border-space-ghost-border rounded-[4px] p-3">
+          <p className="text-[0.625rem] text-space-spectral/50 mb-1 tracking-[1px] uppercase">{label}</p>
+          <p className="text-[0.8125rem] font-bold text-space-spectral tracking-[1.17px]">{payload[0].value?.toLocaleString()} kg</p>
         </div>
       );
     }
@@ -89,22 +89,23 @@ export default function StatsPage() {
   };
 
   return (
-    <div className="max-w-5xl">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-sirius-text mb-1 sm:mb-2">Estadísticas</h1>
-        <p className="text-sm sm:text-base text-sirius-textMuted">Analiza tu progreso ejercicio por ejercicio</p>
+    <div>
+      {/* Header - No container */}
+      <div className="mb-10 pt-4">
+        <h1 className="text-[2rem] font-bold text-space-spectral mb-2 tracking-[0.96px]">Estadísticas</h1>
+        <p className="text-[0.875rem] text-space-spectral/50" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Analiza tu progreso ejercicio por ejercicio</p>
       </div>
 
       {/* Exercise Selector */}
-      <div className="mb-6 sm:mb-8">
-        <label className="block text-sm text-sirius-textMuted mb-2">Selecciona un ejercicio</label>
+      <div className="mb-8">
+        <label className="block text-[0.625rem] text-space-spectral/50 mb-2 tracking-[1px] uppercase">Selecciona un ejercicio</label>
         <select
           value={selectedExercise}
           onChange={(e) => setSelectedExercise(e.target.value)}
-          className="w-full bg-sirius-surface border border-sirius-border rounded-xl px-4 py-3 
-            text-sirius-text focus:border-sirius-accent outline-none text-base"
+          className="w-full bg-space-black border border-space-ghost-border rounded-[4px] px-4 py-3 
+            text-space-spectral focus:border-space-ghost-border outline-none text-[0.8125rem] tracking-[1.17px]"
         >
-          <option value="">-- Selecciona un ejercicio --</option>
+          <option value="">Selecciona un ejercicio</option>
           {exercises.map((ex) => (
             <option key={ex} value={ex}>{ex}</option>
           ))}
@@ -113,65 +114,45 @@ export default function StatsPage() {
 
       {selectedExercise && !loading && exerciseStats && (
         <>
-          {/* KPI Cards - Responsive Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-            <div className="bg-sirius-surface border border-sirius-border rounded-2xl p-4 sm:p-6">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="p-2 sm:p-3 bg-yellow-500/10 rounded-xl shrink-0">
-                  <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-sirius-textMuted">Récord Personal</p>
-                  <p className="text-xl sm:text-2xl font-bold text-sirius-text">{exerciseStats.pr} kg</p>
-                </div>
-              </div>
+          {/* KPI Stats - Grid with dividers */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-space-ghost-border mb-8">
+            <div className="bg-space-black p-6">
+              <p className="text-[0.625rem] text-space-spectral/50 mb-1 tracking-[1px] uppercase">Récord Personal</p>
+              <p className="text-[2rem] font-bold text-space-spectral tracking-[0.96px]">{exerciseStats.pr} kg</p>
             </div>
-            <div className="bg-sirius-surface border border-sirius-border rounded-2xl p-4 sm:p-6">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="p-2 sm:p-3 bg-sirius-accent/10 rounded-xl shrink-0">
-                  <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-sirius-accent" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-sirius-textMuted">Volumen Total</p>
-                  <p className="text-xl sm:text-2xl font-bold text-sirius-text">{exerciseStats.totalVolume.toLocaleString()} kg</p>
-                </div>
-              </div>
+            <div className="bg-space-black p-6">
+              <p className="text-[0.625rem] text-space-spectral/50 mb-1 tracking-[1px] uppercase">Volumen Total</p>
+              <p className="text-[2rem] font-bold text-space-spectral tracking-[0.96px]">{exerciseStats.totalVolume.toLocaleString()} kg</p>
             </div>
-            <div className="bg-sirius-surface border border-sirius-border rounded-2xl p-4 sm:p-6 sm:col-span-2 lg:col-span-1">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="p-2 sm:p-3 bg-green-500/10 rounded-xl shrink-0">
-                  <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-sirius-textMuted">Veces realizado</p>
-                  <p className="text-xl sm:text-2xl font-bold text-sirius-text">{exerciseStats.timesPerformed}</p>
-                </div>
-              </div>
+            <div className="bg-space-black p-6">
+              <p className="text-[0.625rem] text-space-spectral/50 mb-1 tracking-[1px] uppercase">Veces realizado</p>
+              <p className="text-[2rem] font-bold text-space-spectral tracking-[0.96px]">{exerciseStats.timesPerformed}</p>
             </div>
           </div>
 
           {/* Charts */}
-          <div className="grid gap-6 sm:gap-8">
+          <div className="space-y-8">
             {/* Volume Chart */}
-            <div className="bg-sirius-surface border border-sirius-border rounded-2xl p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-sirius-text mb-3 sm:mb-4 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-sirius-accent shrink-0" />
-                <span className="truncate">Volumen por Sesión</span>
+            <div>
+              <h3 className="text-[0.8125rem] font-bold text-space-spectral mb-4 tracking-[1.17px] flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                Volumen por Sesión
               </h3>
-              <div className="h-[200px] sm:h-[250px] lg:h-[300px]">
+              <div className="h-[200px] sm:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={exerciseStats.volumeOverTime}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(240,240,250,0.1)" />
                     <XAxis 
                       dataKey="date" 
                       tickFormatter={formatDate}
-                      stroke="#8888a0"
+                      stroke="rgba(240,240,250,0.5)"
                       fontSize={10}
-                      interval="preserveStartEnd"
+                      tick={{ fill: 'rgba(240,240,250,0.5)', letterSpacing: '1px' }}
                     />
                     <YAxis 
-                      stroke="#8888a0"
+                      stroke="rgba(240,240,250,0.5)"
                       fontSize={10}
+                      tick={{ fill: 'rgba(240,240,250,0.5)', letterSpacing: '1px' }}
                       tickFormatter={(v) => `${v}`}
                       width={40}
                     />
@@ -179,10 +160,10 @@ export default function StatsPage() {
                     <Line 
                       type="monotone" 
                       dataKey="value" 
-                      stroke="#00d4ff" 
+                      stroke="#f0f0fa" 
                       strokeWidth={2}
-                      dot={{ fill: "#00d4ff", strokeWidth: 0, r: 3 }}
-                      activeDot={{ r: 5, fill: "#00d4ff" }}
+                      dot={{ fill: "#f0f0fa", strokeWidth: 0, r: 3 }}
+                      activeDot={{ r: 5, fill: "#f0f0fa" }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -190,25 +171,26 @@ export default function StatsPage() {
             </div>
 
             {/* Max Weight Chart */}
-            <div className="bg-sirius-surface border border-sirius-border rounded-2xl p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-sirius-text mb-3 sm:mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-yellow-400 shrink-0" />
-                <span className="truncate">Peso Máximo por Sesión</span>
+            <div>
+              <h3 className="text-[0.8125rem] font-bold text-space-spectral mb-4 tracking-[1.17px] flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                Peso Máximo por Sesión
               </h3>
-              <div className="h-[200px] sm:h-[250px] lg:h-[300px]">
+              <div className="h-[200px] sm:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={exerciseStats.maxWeightOverTime}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(240,240,250,0.1)" />
                     <XAxis 
                       dataKey="date" 
                       tickFormatter={formatDate}
-                      stroke="#8888a0"
+                      stroke="rgba(240,240,250,0.5)"
                       fontSize={10}
-                      interval="preserveStartEnd"
+                      tick={{ fill: 'rgba(240,240,250,0.5)', letterSpacing: '1px' }}
                     />
                     <YAxis 
-                      stroke="#8888a0"
+                      stroke="rgba(240,240,250,0.5)"
                       fontSize={10}
+                      tick={{ fill: 'rgba(240,240,250,0.5)', letterSpacing: '1px' }}
                       tickFormatter={(v) => `${v}`}
                       width={40}
                     />
@@ -216,10 +198,10 @@ export default function StatsPage() {
                     <Line 
                       type="monotone" 
                       dataKey="value" 
-                      stroke="#facc15"
+                      stroke="#f0f0fa"
                       strokeWidth={2}
-                      dot={{ fill: "#facc15", strokeWidth: 0, r: 3 }}
-                      activeDot={{ r: 5, fill: "#facc15" }}
+                      dot={{ fill: "#f0f0fa", strokeWidth: 0, r: 3 }}
+                      activeDot={{ r: 5, fill: "#f0f0fa" }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -230,16 +212,16 @@ export default function StatsPage() {
       )}
 
       {selectedExercise && !loading && !exerciseStats && (
-        <div className="text-center py-10 sm:py-12 text-sirius-textMuted">
-          <Dumbbell className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 opacity-30" />
-          <p className="text-sm sm:text-base">No hay datos para este ejercicio</p>
+        <div className="text-center py-12">
+          <Dumbbell className="w-12 h-12 text-space-spectral/30 mx-auto mb-4" />
+          <p className="text-space-spectral/50 text-[0.875rem]" style={{ textTransform: 'none', letterSpacing: 'normal' }}>No hay datos para este ejercicio</p>
         </div>
       )}
 
       {!selectedExercise && (
-        <div className="text-center py-10 sm:py-12 text-sirius-textMuted">
-          <BarChart3 className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 opacity-30" />
-          <p className="text-sm sm:text-base">Selecciona un ejercicio para ver sus estadísticas</p>
+        <div className="text-center py-12">
+          <BarChart3 className="w-12 h-12 text-space-spectral/30 mx-auto mb-4" />
+          <p className="text-space-spectral/50 text-[0.875rem]" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Selecciona un ejercicio para ver sus estadísticas</p>
         </div>
       )}
     </div>
