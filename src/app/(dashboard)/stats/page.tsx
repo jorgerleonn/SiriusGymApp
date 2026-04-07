@@ -9,7 +9,9 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer 
+  ResponsiveContainer,
+  AreaChart,
+  Area 
 } from "recharts";
 import { Dumbbell, TrendingUp, BarChart3 } from "lucide-react";
 
@@ -26,11 +28,18 @@ interface ExerciseStats {
   maxWeightOverTime: chartData[];
 }
 
+interface StatsResponse {
+  exercises: string[];
+  stats: ExerciseStats | null;
+  totalVolumeBySession?: chartData[];
+}
+
 export default function StatsPage() {
   const { user, isLoaded } = useUser();
   const [exercises, setExercises] = useState<string[]>([]);
   const [selectedExercise, setSelectedExercise] = useState<string>("");
   const [exerciseStats, setExerciseStats] = useState<ExerciseStats | null>(null);
+  const [totalVolumeBySession, setTotalVolumeBySession] = useState<chartData[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -40,6 +49,9 @@ export default function StatsPage() {
         .then(data => {
           if (data.exercises) {
             setExercises(data.exercises);
+          }
+          if (data.totalVolumeBySession) {
+            setTotalVolumeBySession(data.totalVolumeBySession);
           }
         });
     }
@@ -219,10 +231,59 @@ export default function StatsPage() {
       )}
 
       {!selectedExercise && (
-        <div className="text-center py-12">
-          <BarChart3 className="w-12 h-12 text-space-spectral/30 mx-auto mb-4" />
-          <p className="text-space-spectral/50 text-[0.875rem]" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Selecciona un ejercicio para ver sus estadísticas</p>
-        </div>
+        <>
+          {totalVolumeBySession.length > 0 && (
+            <div>
+              <h3 className="text-[0.8125rem] font-bold text-space-spectral mb-4 tracking-[1.17px] flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                Volumen Total por Sesión
+              </h3>
+              <div className="h-[200px] sm:h-[300px] mb-8">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={totalVolumeBySession}>
+                    <defs>
+                      <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0653b6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#0653b6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(240,240,250,0.1)" vertical={false} />
+                    <XAxis 
+                      dataKey="date" 
+                      tickFormatter={formatDate}
+                      stroke="rgba(240,240,250,0.5)"
+                      fontSize={10}
+                      tick={{ fill: 'rgba(240,240,250,0.5)', letterSpacing: '1px' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      stroke="rgba(240,240,250,0.5)"
+                      fontSize={10}
+                      tick={{ fill: 'rgba(240,240,250,0.5)', letterSpacing: '1px' }}
+                      tickFormatter={(v) => `${v}`}
+                      width={40}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#0653b6" 
+                      strokeWidth={2}
+                      fill="url(#volumeGradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+          <div className="text-center py-12">
+            <BarChart3 className="w-12 h-12 text-space-spectral/30 mx-auto mb-4" />
+            <p className="text-space-spectral/50 text-[0.875rem]" style={{ textTransform: 'none', letterSpacing: 'normal' }}>Selecciona un ejercicio para ver sus estadísticas</p>
+          </div>
+        </>
       )}
     </div>
   );

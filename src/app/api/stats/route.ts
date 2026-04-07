@@ -32,13 +32,29 @@ export async function GET(request: Request) {
   if (!exerciseName) {
     const { data: exercises } = await supabase
       .from("exercises")
-      .select("name")
+      .select("name, workout_id, sets(weight, reps)")
       .in("workout_id", workoutIds);
 
     const exerciseNames = exercises?.map(e => e.name) || [];
     const uniqueExercises = [...new Set(exerciseNames)].sort();
 
-    return NextResponse.json({ exercises: uniqueExercises, stats: null });
+    const volumeBySession: { date: string; value: number }[] = [];
+    for (const w of workouts) {
+      const sessionExercises = exercises?.filter(e => e.workout_id === w.id) || [];
+      let sessionVolume = 0;
+      for (const ex of sessionExercises) {
+        if (ex.sets) {
+          sessionVolume += ex.sets.reduce((acc: number, s: any) => acc + (Number(s.weight) * s.reps), 0);
+        }
+      }
+      volumeBySession.push({ date: w.date, value: Math.round(sessionVolume) });
+    }
+
+    return NextResponse.json({ 
+      exercises: uniqueExercises, 
+      stats: null,
+      totalVolumeBySession: volumeBySession
+    });
   }
 
   const { data: exercises } = await supabase
