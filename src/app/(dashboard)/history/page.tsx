@@ -1,55 +1,73 @@
 import { getWorkouts } from "@/lib/queries";
-import { Dumbbell } from "lucide-react";
+import { Dumbbell, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { MStripe } from "@/components/ui/m-stripe";
 
 export default async function HistoryPage() {
   const workouts = await getWorkouts();
 
   return (
     <div>
-      <h1 className="text-[2rem] font-bold text-space-spectral mb-10 pt-4 tracking-[0.96px]">Historial</h1>
+      <MStripe className="mb-lg" />
+      <h1 className="text-display-md font-display text-primary tracking-[0] mb-xl">
+        HISTORIAL
+      </h1>
 
       {workouts.length === 0 ? (
-        <div className="text-center py-12">
-          <Dumbbell className="w-12 h-12 text-space-spectral/30 mx-auto mb-4" />
-          <p className="text-space-spectral/60 text-[0.875rem]" style={{ textTransform: 'none', letterSpacing: 'normal' }}>No hay workouts todavía</p>
+        <div className="text-center py-xxl border border-hairline">
+          <Dumbbell className="w-8 h-8 text-muted mx-auto mb-md" />
+          <p className="text-body-md text-muted mb-md">NO HAY ENTRENAMIENTOS</p>
+          <Link href="/workout/new">
+            <Button variant="outline" size="sm">
+              CREA TU PRIMERO
+            </Button>
+          </Link>
         </div>
       ) : (
-        <div className="space-y-px bg-space-ghost-border">
-          {workouts.map((workout) => (
-            <Link key={workout.id} href={`/workout/${workout.id}`} className="block bg-space-black hover:bg-space-ghost transition-colors">
-              <div className="p-6">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-4">
-                  <div className="min-w-0">
-                    <h3 className="text-[0.8125rem] font-bold text-space-spectral tracking-[1.17px]">{workout.name}</h3>
-                    <p className="text-[0.625rem] text-space-spectral/50 mt-1" style={{ textTransform: 'none', letterSpacing: 'normal' }}>
-                      {new Date(workout.date).toLocaleDateString("es-ES", { 
-                        weekday: "long", year: "numeric", month: "long", day: "numeric" 
-                      })}
-                    </p>
-                  </div>
-                  <span className="self-start px-3 py-1 bg-space-ghost text-space-spectral/70 rounded-[4px] text-[0.625rem] tracking-[1px] uppercase whitespace-nowrap">
-                    {workout.exercises?.length || 0} ejercicios
-                  </span>
-                </div>
-
-                <div className="space-y-px bg-space-ghost-border">
-                  {workout.exercises?.map((ex: { name: string; sets?: { weight: number; reps: number }[] }, i: number) => {
-                    const totalSets = ex.sets?.length || 0;
-                    const totalVolume = ex.sets?.reduce((acc, s) => acc + (Number(s.weight) * s.reps), 0) || 0;
-                    return (
-                      <div key={i} className="flex justify-between bg-space-black py-2 px-2">
-                        <span className="text-[0.75rem] text-space-spectral tracking-[1.17px] truncate pr-2">{ex.name}</span>
-                        <span className="text-[0.625rem] text-space-spectral/50 whitespace-nowrap">
-                          {totalSets} series • {totalVolume.toFixed(0)}kg
-                        </span>
+        <div className="space-y-px bg-hairline">
+          {workouts.map((workout: { id: string; name: string; date: string; type: string }) => {
+            const isStrength = workout.type === "strength" || workout.type === "hybrid";
+            const isCardio = workout.type === "cardio" || workout.type === "hybrid";
+            return (
+              <Link
+                key={workout.id}
+                href={`/workout/${workout.id}`}
+                className="block bg-surface-card hover:bg-surface-elevated transition-colors group"
+              >
+                <div className="p-lg">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-md mb-md">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-md flex-wrap">
+                        <h3 className="text-label-uppercase text-primary tracking-[1.5px]">{workout.name}</h3>
+                        <div className="flex gap-xxs">
+                          {isStrength && (
+                            <span className="text-caption text-m-blue-light tracking-[1px] border border-m-blue-light/30 px-xs py-[2px]">
+                              FUERZA
+                            </span>
+                          )}
+                          {isCardio && (
+                            <span className="text-caption text-m-red tracking-[1px] border border-m-red/30 px-xs py-[2px]">
+                              CARDIO
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    );
-                  })}
+                      <p className="text-body-sm text-muted mt-xs tracking-[0]">
+                        {new Date(workout.date).toLocaleDateString("es-ES", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted group-hover:text-primary transition-colors shrink-0 self-start" />
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

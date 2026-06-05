@@ -1,5 +1,21 @@
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseAdmin } from "@/lib/supabase";
+import type { DashboardStats, MuscleGroupData, ChartData } from "./types";
+
+interface QuerySet {
+  weight?: number | null;
+  reps?: number | null;
+  distance_meters?: number | null;
+}
+
+interface QueryExercise {
+  id: string;
+  workout_id: string;
+  name: string;
+  type: string;
+  muscle_group: string;
+  sets?: QuerySet[];
+}
 
 export async function getWorkouts() {
   const { userId } = await auth();
@@ -8,13 +24,7 @@ export async function getWorkouts() {
   const supabase = createSupabaseAdmin();
   const { data } = await supabase
     .from("workouts")
-    .select(`
-      *,
-      exercises (
-        *,
-        sets (*)
-      )
-    `)
+    .select("*")
     .eq("user_id", userId)
     .order("date", { ascending: false });
   return data || [];
@@ -27,20 +37,37 @@ export async function getWorkout(id: string) {
   const supabase = createSupabaseAdmin();
   const { data } = await supabase
     .from("workouts")
-    .select(`
-      *,
-      exercises (
-        *,
-        sets (*)
-      )
-    `)
+    .select("*")
     .eq("id", id)
     .eq("user_id", userId)
     .single();
+
+  if (!data) return null;
+
+  const { data: exercises } = await supabase
+    .from("exercises")
+    .select("*")
+    .eq("workout_id", id)
+    .order("order_index", { ascending: true });
+
+  if (exercises) {
+    const exerciseIds = exercises.map((e: { id: string }) => e.id);
+    const { data: sets } = await supabase
+      .from("sets")
+      .select("*")
+      .in("exercise_id", exerciseIds)
+      .order("order_index", { ascending: true });
+
+    data.exercises = exercises.map((ex: { id: string }) => ({
+      ...ex,
+      sets: sets?.filter((s: { exercise_id: string }) => s.exercise_id === ex.id) || [],
+    }));
+  }
+
   return data;
 }
 
-export async function getStats() {
+export async function getDashboardStats(): Promise<DashboardStats | null> {
   const { userId } = await auth();
   if (!userId) return null;
 
@@ -48,77 +75,183 @@ export async function getStats() {
 
   const { data: workouts } = await supabase
     .from("workouts")
-    .select("*")
+    .select("id, date, type")
     .eq("user_id", userId)
-    .order("date", { ascending: false });
+    .order("date", { ascending: true });
 
-  if (!workouts || workouts.length === 0) return null;
+  if (!workouts || workouts.length === 0) {
+    return {
+      totalWorkouts: 0, thisWeek: 0, thisMonth: 0,
+      totalVolume: 0, totalCardioDistance: 0,
+      currentStreak: 0, bestStreak: 0,
+      volumeOverTime: [], runningVolumeOverTime: [],
+      muscleDistribution: [], weeklyActivity: [],
+    };
+  }
+
+  const workoutIds = workouts.map((w: { id: string }) => w.id);
 
   const { data: allExercises } = await supabase
     .from("exercises")
-    .select(`
-      *,
-      sets (weight, reps)
-    `)
-    .in("workout_id", workouts.map(w => w.id));
+    .select("id, workout_id, name, muscle_group, type, sets(weight, reps, distance_meters)")
+    .in("workout_id", workoutIds);
 
+  // Calculate base stats
   const totalWorkouts = workouts.length;
-  const totalSets = allExercises?.reduce((acc, ex) => acc + (ex.sets?.length || 0), 0) || 0;
-  const totalVolume = allExercises?.reduce((acc: number, ex: any) => {
-    return acc + (ex.sets?.reduce((v: number, s: any) => v + (Number(s.weight) * s.reps), 0) || 0);
-  }, 0) || 0;
 
-  const firstWorkout = workouts[workouts.length - 1];
-  const lastWorkout = workouts[0];
-  const daysActive = Math.max(1, Math.ceil((new Date(lastWorkout.date).getTime() - new Date(firstWorkout.date).getTime()) / (1000 * 60 * 60 * 24)));
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const thisWeek = workouts.filter((w: { date: string }) => new Date(w.date) >= weekAgo).length;
 
-  const thisWeek = workouts.filter(w => {
-    const date = new Date(w.date);
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    return date >= weekAgo;
+  const thisMonth = workouts.filter((w: { date: string }) => {
+    const d = new Date(w.date);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
 
-  const thisMonth = workouts.filter(w => {
-    const date = new Date(w.date);
-    const now = new Date();
-    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-  }).length;
+  // Volume calculations
+  const strengthExercises = allExercises?.filter((e: { type: string }) => e.type === "strength") || [];
+  const cardioExercises = allExercises?.filter((e: { type: string }) => e.type === "cardio") || [];
 
-  const workoutNames = workouts.map(w => w.name);
-  const workoutTypeCounts: Record<string, number> = workoutNames.reduce((acc, name) => {
-    acc[name] = (acc[name] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  const favoriteWorkout = Object.entries(workoutTypeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
+  const totalVolume = (strengthExercises as QueryExercise[]).reduce((acc: number, ex) => {
+    return acc + (ex.sets?.reduce((v: number, s) => v + (Number(s.weight) * (s.reps || 0)), 0) || 0);
+  }, 0);
 
-  const exerciseNames = allExercises?.map(e => e.name) || [];
-  const exerciseCounts: Record<string, number> = exerciseNames.reduce((acc, name) => {
-    acc[name] = (acc[name] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  const favoriteExercise = Object.entries(exerciseCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
+  const totalCardioDistance = (cardioExercises as QueryExercise[]).reduce((acc: number, ex) => {
+    return acc + (ex.sets?.reduce((v: number, s) => v + (Number(s.distance_meters) || 0), 0) || 0);
+  }, 0);
 
-  const exercisePRs = allExercises?.reduce((acc: Record<string, { weight: number; reps: number }>, ex: any) => {
-    const maxWeight = Math.max(...(ex.sets?.map((s: any) => Number(s.weight)) || [0]));
-    if (maxWeight > 0 && (!acc[ex.name] || maxWeight > acc[ex.name].weight)) {
-      acc[ex.name] = { weight: maxWeight, reps: ex.sets?.find((s: any) => Number(s.weight) === maxWeight)?.reps || 0 };
+  // Streak calculation
+  const dates = [...new Set(workouts.map((w: { date: string }) => w.date))].sort();
+  let currentStreak = 0;
+  let bestStreak = 0;
+  let tempStreak = 0;
+
+  if (dates.length > 0) {
+    const today = new Date().toISOString().split("T")[0];
+    const lastDate = dates[dates.length - 1];
+
+    // Check if the streak is current
+    const lastDateObj = new Date(lastDate);
+    const todayObj = new Date(today);
+    const diffDays = Math.floor((todayObj.getTime() - lastDateObj.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays <= 1) {
+      for (let i = dates.length - 1; i >= 0; i--) {
+        if (i > 0) {
+          const curr = new Date(dates[i]);
+          const prev = new Date(dates[i - 1]);
+          const diff = Math.floor((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
+          if (diff === 1) {
+            tempStreak++;
+          } else {
+            break;
+          }
+        }
+      }
+      currentStreak = tempStreak + 1;
     }
-    return acc;
-  }, {} as Record<string, { weight: number; reps: number }>);
+
+    for (let i = 0; i < dates.length; i++) {
+      if (i > 0) {
+        const curr = new Date(dates[i]);
+        const prev = new Date(dates[i - 1]);
+        const diff = Math.floor((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
+        if (diff === 1) {
+          tempStreak++;
+        } else {
+          bestStreak = Math.max(bestStreak, tempStreak + 1);
+          tempStreak = 0;
+        }
+      }
+    }
+    bestStreak = Math.max(bestStreak, tempStreak + 1);
+  }
+
+  // Volume over time
+  const volumeOverTime: ChartData[] = [];
+  const runningVolumeOverTime: ChartData[] = [];
+
+  for (const w of workouts) {
+    const sessionExercises = allExercises?.filter((e: { workout_id: string }) => e.workout_id === w.id) || [];
+    const strengthSession = sessionExercises.filter((e: { type: string }) => e.type === "strength");
+    const cardioSession = sessionExercises.filter((e: { type: string }) => e.type === "cardio");
+
+    const sessionVolume = (strengthSession as QueryExercise[]).reduce((acc: number, ex) => {
+      return acc + (ex.sets?.reduce((v: number, s) => v + (Number(s.weight) * (s.reps || 0)), 0) || 0);
+    }, 0);
+
+    const sessionDistance = (cardioSession as QueryExercise[]).reduce((acc: number, ex) => {
+      return acc + (ex.sets?.reduce((v: number, s) => v + (Number(s.distance_meters) || 0), 0) || 0);
+    }, 0);
+
+    if (sessionVolume > 0) {
+      volumeOverTime.push({ date: w.date, value: Math.round(sessionVolume) });
+    }
+    if (sessionDistance > 0) {
+      runningVolumeOverTime.push({ date: w.date, value: Math.round(sessionDistance / 1000) });
+    }
+  }
+
+  // Muscle distribution
+  const muscleMap = new Map<string, MuscleGroupData>();
+  for (const ex of strengthExercises as QueryExercise[]) {
+    const mg = ex.muscle_group || "OTROS";
+    const existing = muscleMap.get(mg) || { name: mg, volume: 0, sessions: 0 };
+    existing.sessions += 1;
+    existing.volume += (ex.sets?.reduce((v: number, s) => v + (Number(s.weight) * (s.reps || 0)), 0) || 0);
+    muscleMap.set(mg, existing);
+  }
+  const muscleDistribution = Array.from(muscleMap.values())
+    .sort((a, b) => b.volume - a.volume);
+
+  // Weekly activity for heatmap (last 12 weeks)
+  const weeklyActivity: { date: string; count: number }[] = [];
+  const twelveWeeksAgo = new Date(now.getTime() - 84 * 24 * 60 * 60 * 1000);
+  for (let d = new Date(twelveWeeksAgo); d <= now; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().split("T")[0];
+    const count = workouts.filter((w: { date: string }) => w.date === dateStr).length;
+    weeklyActivity.push({ date: dateStr, count });
+  }
 
   return {
     totalWorkouts,
-    totalSets,
-    totalVolume: Math.round(totalVolume),
-    daysActive,
     thisWeek,
     thisMonth,
-    favoriteWorkout,
-    favoriteExercise,
-    exercisePRs: exercisePRs || {},
-    workoutsPerWeek: totalWorkouts / Math.max(1, daysActive / 7),
+    totalVolume: Math.round(totalVolume),
+    totalCardioDistance: Math.round(totalCardioDistance / 1000),
+    currentStreak,
+    bestStreak,
+    volumeOverTime,
+    runningVolumeOverTime,
+    muscleDistribution,
+    weeklyActivity,
   };
+}
+
+export async function getWorkoutTemplates() {
+  const { userId } = await auth();
+  if (!userId) return [];
+
+  const supabase = createSupabaseAdmin();
+
+  const { data: templates } = await supabase
+    .from("workout_templates")
+    .select("*")
+    .eq("user_id", userId)
+    .order("name", { ascending: true });
+
+  if (!templates) return [];
+
+  for (const template of templates) {
+    const { data: exercises } = await supabase
+      .from("template_exercises")
+      .select("*")
+      .eq("template_id", template.id)
+      .order("order_index", { ascending: true });
+    template.exercises = exercises || [];
+  }
+
+  return templates;
 }
 
 export async function getAllExercises() {
@@ -134,7 +267,7 @@ export async function getAllExercises() {
 
   if (!workouts || workouts.length === 0) return [];
 
-  const workoutIds = workouts.map(w => w.id);
+  const workoutIds = workouts.map((w: { id: string }) => w.id);
 
   const { data: exercises } = await supabase
     .from("exercises")
@@ -143,23 +276,15 @@ export async function getAllExercises() {
 
   if (!exercises) return [];
 
-  const exerciseNames = exercises.map(e => e.name);
-  const uniqueExercises = [...new Set(exerciseNames)].sort();
-
-  return uniqueExercises;
+  return [...new Set(exercises.map((e: { name: string }) => e.name))].sort();
 }
 
 export interface ExerciseStats {
   pr: number;
   totalVolume: number;
-  timesPerformed: chartData[];
-  volumeOverTime: chartData[];
-  maxWeightOverTime: chartData[];
-}
-
-export interface chartData {
-  date: string;
-  value: number;
+  timesPerformed: number;
+  volumeOverTime: ChartData[];
+  maxWeightOverTime: ChartData[];
 }
 
 export async function getExerciseStats(exerciseName: string): Promise<ExerciseStats | null> {
@@ -176,11 +301,11 @@ export async function getExerciseStats(exerciseName: string): Promise<ExerciseSt
 
   if (!workouts || workouts.length === 0) return null;
 
-  const workoutIds = workouts.map(w => w.id);
-  const workoutDateMap = workouts.reduce((acc, w) => {
+  const workoutIds = workouts.map((w: { id: string }) => w.id);
+  const workoutDateMap = workouts.reduce((acc: Record<string, string>, w: { id: string; date: string }) => {
     acc[w.id] = w.date;
     return acc;
-  }, {} as Record<string, string>);
+  }, {});
 
   const { data: exercises } = await supabase
     .from("exercises")
@@ -192,21 +317,19 @@ export async function getExerciseStats(exerciseName: string): Promise<ExerciseSt
 
   let pr = 0;
   let totalVolume = 0;
-  const timesPerformed: chartData[] = [];
-  const volumeOverTime: chartData[] = [];
-  const maxWeightOverTime: chartData[] = [];
+  const volumeOverTime: ChartData[] = [];
+  const maxWeightOverTime: ChartData[] = [];
 
   for (const ex of exercises) {
     const date = workoutDateMap[ex.workout_id];
     if (!date || !ex.sets) continue;
 
-    const sessionVolume = ex.sets.reduce((acc, s) => acc + (Number(s.weight) * s.reps), 0);
-    const sessionMaxWeight = Math.max(...ex.sets.map(s => Number(s.weight)));
+    const sessionVolume = (ex.sets as QuerySet[]).reduce((acc, s) => acc + (Number(s.weight) * (s.reps || 0)), 0);
+    const sessionMaxWeight = Math.max(...(ex.sets as QuerySet[]).map((s) => Number(s.weight)));
 
     if (sessionMaxWeight > pr) pr = sessionMaxWeight;
     totalVolume += sessionVolume;
 
-    timesPerformed.push({ date, value: ex.sets.length });
     volumeOverTime.push({ date, value: Math.round(sessionVolume) });
     maxWeightOverTime.push({ date, value: sessionMaxWeight });
   }
@@ -214,7 +337,7 @@ export async function getExerciseStats(exerciseName: string): Promise<ExerciseSt
   return {
     pr,
     totalVolume,
-    timesPerformed,
+    timesPerformed: exercises.length,
     volumeOverTime,
     maxWeightOverTime,
   };
