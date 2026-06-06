@@ -6,10 +6,12 @@ import { createWorkout } from "@/actions/workout";
 import type { WorkoutType, ExerciseType, WorkoutTemplate } from "@/lib/types";
 import { X, Dumbbell, Route } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { MStripe } from "@/components/ui/m-stripe";
+import { CardioDropzone } from "@/components/cardio-dropzone";
 
 const MUSCLE_GROUPS = [
-  "PECTORAL", "ESPALDA", "HOMBROS", "BÍCEPS", "TRÍCEPS",
+  "PECTORAL", "ESPALDA", "ESPALDA SUPERIOR", "ESPALDA INFERIOR", "HOMBROS", "BÍCEPS", "TRÍCEPS",
   "CUÁDRICEPS", "ISQUIOTIBIALES", "GLÚTEOS", "GEMELOS", "ABDOMEN", "TRAPECIO"
 ];
 
@@ -40,6 +42,7 @@ export default function NewWorkoutPage() {
   const [workoutName, setWorkoutName] = useState("");
   const [exercises, setExercises] = useState<ExerciseForm[]>([]);
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
+  const [existingExercises, setExistingExercises] = useState<string[]>([]);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +51,15 @@ export default function NewWorkoutPage() {
     fetch("/api/templates").then(res => res.json()).then(data => {
       if (Array.isArray(data)) setTemplates(data as WorkoutTemplate[]);
     });
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.exercises) setExistingExercises(data.exercises as string[]);
+      })
+      .catch(() => {});
   }, []);
 
   const templateApplied = useRef(false);
@@ -306,12 +318,11 @@ export default function NewWorkoutPage() {
             {/* Exercise Header */}
             <div className="flex justify-between items-center mb-md gap-md">
               <div className="flex-1 flex flex-col sm:flex-row gap-sm">
-                <input
-                  type="text"
+                <Combobox
                   value={exercise.name}
-                  onChange={(e) => updateExerciseField(exIndex, "name", e.target.value)}
+                  onChange={(value) => updateExerciseField(exIndex, "name", value)}
+                  items={existingExercises}
                   placeholder="NOMBRE DEL EJERCICIO"
-                  className="flex-1 min-w-0 bg-canvas border border-hairline rounded-none px-sm py-xs text-primary placeholder:text-muted/50 focus:border-primary outline-none text-body-md tracking-[0]"
                 />
 
                 {/* Type toggle for hybrid */}
@@ -490,6 +501,14 @@ export default function NewWorkoutPage() {
             </div>
           </div>
         ))}
+
+        {/* Cardio .fit Upload */}
+        {(workoutType === "cardio" || workoutType === "hybrid") && (
+          <div className="bg-surface-card border border-hairline rounded-none p-lg">
+            <h3 className="text-caption text-muted mb-sm tracking-[1.5px] uppercase">IMPORTAR .fit</h3>
+            <CardioDropzone />
+          </div>
+        )}
 
         {/* Add Exercise Buttons */}
         <div className="flex gap-px bg-hairline">

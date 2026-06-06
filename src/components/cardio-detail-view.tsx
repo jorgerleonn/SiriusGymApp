@@ -119,7 +119,10 @@ export function CardioDetailView({ workout }: { workout: CardioData }) {
               const minutes = Math.round(seconds / 60);
               return (
                 <div key={i} className="grid grid-cols-[100px_1fr_60px_60px] gap-sm items-center">
-                  <span className="text-caption text-muted tracking-[1px]">{zoneLabels[i]}</span>
+                  <span className="text-caption text-muted tracking-[1px] flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 shrink-0 ${zoneColors[i]}`} />
+                    {zoneLabels[i]}
+                  </span>
                   <div className="h-4 bg-canvas relative">
                     <div
                       className={`h-full ${zoneColors[i]} transition-all duration-500`}

@@ -9,7 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   LineChart,
-  Line,
+  Area,
 } from "recharts";
 
 interface ChartDataPoint {
@@ -168,6 +168,12 @@ export function RunningStatsView({ stats }: { stats: RunningStats }) {
             <div className="h-48 sm:h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={paceData}>
+                  <defs>
+                    <linearGradient id="paceGradientRs" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#1c69d4" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#1c69d4" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#3c3c3c" vertical={false} />
                   <XAxis
                     dataKey="date"
@@ -184,7 +190,7 @@ export function RunningStatsView({ stats }: { stats: RunningStats }) {
                     tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
                     tickFormatter={(v) => paceStr(v)}
                     width={45}
-                    domain={["dataMin - 10", "dataMax + 10"]}
+                    domain={["dataMin - 30", "dataMax + 30"]}
                     axisLine={false}
                     tickLine={false}
                     reversed
@@ -202,11 +208,12 @@ export function RunningStatsView({ stats }: { stats: RunningStats }) {
                       );
                     }}
                   />
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey="value"
                     stroke="#1c69d4"
                     strokeWidth={2}
+                    fill="url(#paceGradientRs)"
                     dot={{ fill: "#1c69d4", strokeWidth: 0, r: 3 }}
                     activeDot={{ r: 5, fill: "#1c69d4" }}
                   />
@@ -220,8 +227,8 @@ export function RunningStatsView({ stats }: { stats: RunningStats }) {
         {zoneArray && totalZoneSeconds > 0 && (
           <div className="bg-surface-card p-lg">
             <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md flex items-center gap-md">
-              <span className="w-2 h-2 bg-m-red" />
-              DISTRIBUCIÓN DE FC
+            <span className="w-2 h-2 bg-m-red" />
+            DISTRIBUCIÓN DE FC
             </h3>
             <div className="space-y-sm">
               {zoneArray.map((seconds, i) => {
@@ -229,7 +236,8 @@ export function RunningStatsView({ stats }: { stats: RunningStats }) {
                 const minutes = Math.round(seconds / 60);
                 return (
                   <div key={i} className="grid grid-cols-[80px_1fr_48px_36px] gap-sm items-center">
-                    <span className="text-caption text-muted tracking-[1px] text-left">
+                    <span className="text-caption text-muted tracking-[1px] text-left flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 shrink-0 ${zoneBgColors[i]}`} />
                       {zoneLabels[i]}
                     </span>
                     <div className="h-3 bg-canvas relative">

@@ -1,13 +1,19 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { updateWorkout, deleteWorkout, saveAsTemplate } from "@/actions/workout";
 import { X, Trash2, Pencil, Save, ArrowLeft, Dumbbell, Route, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { MStripe } from "@/components/ui/m-stripe";
 import { CardioDetailView } from "@/components/cardio-detail-view";
 import type { WorkoutType, ExerciseType } from "@/lib/types";
+
+const MUSCLE_GROUPS = [
+  "PECTORAL", "ESPALDA", "ESPALDA SUPERIOR", "ESPALDA INFERIOR", "HOMBROS", "BÍCEPS", "TRÍCEPS",
+  "CUÁDRICEPS", "ISQUIOTIBIALES", "GLÚTEOS", "GEMELOS", "ABDOMEN", "TRAPECIO"
+];
 
 interface SetData {
   id?: string;
@@ -54,10 +60,23 @@ interface Props {
 
 export default function WorkoutDetailClient({ workout: initial }: Props) {
   const router = useRouter();
-  const [workout, setWorkout] = useState<WorkoutData>(initial);
+  const [workout, setWorkout] = useState<WorkoutData>(() => ({
+    ...initial,
+    exercises: mergeDuplicateExercises(initial.exercises),
+  }));
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [existingExercises, setExistingExercises] = useState<string[]>([]);
   const idCounter = useRef(0);
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.exercises) setExistingExercises(data.exercises as string[]);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSave = async () => {
     if (!workout) return;
@@ -97,7 +116,7 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
       }))
       .filter((ex) => ex.sets.length > 0);
 
-    const result = await updateWorkout(workout.id, workout.name, exercisesToSave);
+    const result = await updateWorkout(workout.id, workout.name, exercisesToSave, { date: workout.date });
     setSaving(false);
 
     if (result.success) {
@@ -173,7 +192,7 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
     setWorkout({ ...workout, exercises: newExercises });
   };
 
-  const mergeDuplicateExercises = (exercises: ExerciseData[]): ExerciseData[] => {
+  function mergeDuplicateExercises(exercises: ExerciseData[]): ExerciseData[] {
     const seen = new Map<string, ExerciseData>();
     const counter = { value: 0 };
 
@@ -197,15 +216,23 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
       ex.sets = ex.sets.map((s, i) => ({ ...s, order_index: i }));
     }
     return merged;
-  };
+  }
 
   const handleExerciseNameChange = (exIndex: number, newName: string) => {
     if (!workout) return;
-    const newExercises = [...workout.exercises];
-    newExercises[exIndex].name = newName;
+    const newExercises = workout.exercises.map((ex, i) =>
+      i === exIndex ? { ...ex, name: newName } : ex
+    );
 
     const merged = mergeDuplicateExercises(newExercises);
     setWorkout({ ...workout, exercises: merged });
+  };
+
+  const updateExerciseField = (exIndex: number, field: string, value: string) => {
+    if (!workout) return;
+    const newExercises = [...workout.exercises];
+    (newExercises[exIndex] as unknown as Record<string, unknown>)[field] = value || null;
+    setWorkout({ ...workout, exercises: newExercises });
   };
 
   const formatPace = (seconds: number | null | undefined) => {
@@ -241,14 +268,31 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
         )}
 
         <div className="flex items-center gap-md mt-sm">
-          <span className="text-body-sm text-muted tracking-[0]">
-            {new Date(workout.date).toLocaleDateString("es-ES", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </span>
+          {isEditing ? (
+            <input
+              type="text"
+              value={workout.date.split("T")[0].split("-").reverse().join("/")}
+              onChange={(e) => {
+                const parts = e.target.value.split("/");
+                if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 4) {
+                  setWorkout({ ...workout, date: `${parts[2]}-${parts[1]}-${parts[0]}` });
+                } else {
+                  setWorkout({ ...workout, date: e.target.value });
+                }
+              }}
+              placeholder="DD/MM/AAAA"
+              className="bg-canvas border border-hairline rounded-none px-sm py-xs text-caption text-primary focus:border-primary outline-none w-[140px]"
+            />
+          ) : (
+            <span className="text-body-sm text-muted tracking-[0]">
+              {new Date(workout.date).toLocaleDateString("es-ES", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </span>
+          )}
           <span className={`text-caption tracking-[1px] px-xs py-[2px] border ${
             workout.type === "strength" ? "text-m-blue-light border-m-blue-light/30" :
             workout.type === "cardio" ? "text-m-red border-m-red/30" :
@@ -306,12 +350,11 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
                 <div className="flex justify-between items-center mb-md gap-md">
                   <div className="flex-1 flex items-center gap-md">
                     {isEditing ? (
-                      <input
-                        type="text"
+                      <Combobox
                         value={exercise.name}
-                        onChange={(e) => handleExerciseNameChange(exIndex, e.target.value)}
+                        onChange={(value) => handleExerciseNameChange(exIndex, value)}
+                        items={existingExercises}
                         placeholder="NOMBRE DEL EJERCICIO"
-                        className="flex-1 min-w-0 bg-canvas border border-hairline rounded-none px-sm py-xs text-primary placeholder:text-muted/50 focus:border-primary outline-none text-body-md tracking-[0]"
                       />
                     ) : (
                       <div className="flex items-center gap-md">
@@ -335,6 +378,22 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
                     </button>
                   )}
                 </div>
+
+                {/* Muscle Group */}
+                {isEditing && (
+                  <div className="mb-md">
+                    <select
+                      value={exercise.muscle_group || ""}
+                      onChange={(e) => updateExerciseField(exIndex, "muscle_group", e.target.value)}
+                      className="bg-canvas border border-hairline rounded-none px-sm py-xs text-caption text-muted focus:border-primary outline-none w-full sm:w-auto tracking-[1px]"
+                    >
+                      <option value="">GRUPO MUSCULAR</option>
+                      {MUSCLE_GROUPS.map((mg) => (
+                        <option key={mg} value={mg}>{mg}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Sets */}
                 <div className="space-y-xs">

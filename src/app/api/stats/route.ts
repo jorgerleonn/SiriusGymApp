@@ -37,8 +37,12 @@ export async function GET(request: Request) {
 
   // ── Exercise listing (no specific exercise selected) ──────────────
   if (!exerciseName) {
-    const exerciseNames = exercises?.map(e => e.name) || [];
-    const uniqueExercises = [...new Set(exerciseNames)].sort();
+    const seen = new Map<string, string>();
+    for (const ex of exercises || []) {
+      const key = ex.name.toUpperCase();
+      if (!seen.has(key)) seen.set(key, ex.name);
+    }
+    const uniqueExercises = [...seen.values()].sort();
 
     // Add "CARRERA" if any cardio workouts with total_cardio_distance exist
     const hasCardioWorkouts = workouts.some(
@@ -92,8 +96,27 @@ export async function GET(request: Request) {
     const paceOverTime: { date: string; value: number }[] = [];
     const hrOverTime: { date: string; value: number }[] = [];
     const aggregatedZones: Record<string, number> = {};
+    const sessions: {
+      date: string;
+      distance_km: number;
+      duration_minutes: number;
+      avg_pace_seconds_per_km: number | null;
+      avg_heart_rate: number | null;
+      total_calories: number | null;
+      hr_zone_seconds: Record<string, number> | null;
+    }[] = [];
 
     for (const w of cardioWorkouts) {
+      sessions.push({
+        date: w.date,
+        distance_km: Math.round((w.total_cardio_distance ?? 0) * 100) / 100,
+        duration_minutes: w.duration_minutes ?? 0,
+        avg_pace_seconds_per_km: w.avg_pace_seconds_per_km ?? null,
+        avg_heart_rate: w.avg_heart_rate ?? null,
+        total_calories: w.total_calories ?? null,
+        hr_zone_seconds: w.hr_zone_seconds as Record<string, number> ?? null,
+      });
+
       totalDistance += w.total_cardio_distance ?? 0;
       totalMinutes += w.duration_minutes ?? 0;
       totalCalories += w.total_calories ?? 0;
@@ -128,7 +151,7 @@ export async function GET(request: Request) {
 
     // Also include manual cardio exercises named CARRERA
     const manualCardioExercises = exercises?.filter(
-      e => e.name === "CARRERA" || e.name === "Carrera" || e.name === "carrera"
+      e => e.name.toUpperCase() === "CARRERA"
     ) || [];
 
     for (const ex of manualCardioExercises) {
@@ -147,6 +170,15 @@ export async function GET(request: Request) {
           totalDistance += distKm;
           distanceOverTime.push({ date, value: Math.round(distKm * 100) / 100 });
           totalMinutes += Math.round(durS / 60);
+          sessions.push({
+            date,
+            distance_km: Math.round(distKm * 100) / 100,
+            duration_minutes: Math.round(durS / 60),
+            avg_pace_seconds_per_km: pace > 0 ? pace : null,
+            avg_heart_rate: null,
+            total_calories: null,
+            hr_zone_seconds: zone > 0 ? { [`zone${zone}`]: durS } : null,
+          });
         }
         if (pace > 0) { paceSum += pace; paceCount++; }
         if (zone > 0) {
@@ -171,12 +203,13 @@ export async function GET(request: Request) {
         paceOverTime,
         hrOverTime,
         hrZoneSeconds: Object.keys(aggregatedZones).length > 0 ? aggregatedZones : null,
+        sessions,
       },
     });
   }
 
   // ── Strength stats (existing logic) ───────────────────────────────
-  const targetExercises = exercises?.filter(e => e.name === exerciseName) || [];
+  const targetExercises = exercises?.filter(e => e.name.toUpperCase() === exerciseName.toUpperCase()) || [];
 
   if (targetExercises.length === 0) {
     return NextResponse.json({ exercises: [], stats: null, statsType: "strength" });

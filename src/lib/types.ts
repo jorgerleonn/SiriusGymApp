@@ -77,6 +77,8 @@ export interface MuscleGroupData {
   name: string;
   volume: number;
   sessions: number;
+  lastTrainedDays: number;
+  effectiveOpacity: number;
 }
 
 export interface DashboardStats {
@@ -90,7 +92,7 @@ export interface DashboardStats {
   volumeOverTime: ChartData[];
   runningVolumeOverTime: ChartData[];
   muscleDistribution: MuscleGroupData[];
-  weeklyActivity: { date: string; count: number }[];
+  weeklyActivity: { date: string; count: number; hasCardio: boolean }[];
 }
 
 export type { ExerciseStats } from "./queries";

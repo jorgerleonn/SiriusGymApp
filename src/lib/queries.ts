@@ -75,7 +75,7 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
 
   const { data: workouts } = await supabase
     .from("workouts")
-    .select("id, date, type")
+    .select("id, date, type, total_cardio_distance")
     .eq("user_id", userId)
     .order("date", { ascending: true });
 
@@ -193,24 +193,209 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
   }
 
   // Muscle distribution
-  const muscleMap = new Map<string, MuscleGroupData>();
+  const CARDIO_MUSCLES = [
+    "CUÁDRICEPS", "ISQUIOTIBIALES", "GLÚTEOS", "GEMELOS",
+    "TIBIAL ANTERIOR", "ABDOMEN", "ESPALDA INFERIOR",
+  ];
+
+  function getBaseOpacity(days: number): number {
+    if (days <= 0) return 1;
+    if (days === 1) return 0.8;
+    if (days === 2) return 0.6;
+    if (days === 3) return 0.4;
+    return 0;
+  }
+
+  interface MuscleTracker {
+    name: string;
+    volume: number;
+    sessions: number;
+    strengthDays: number | null;
+    cardioDays: number | null;
+    cardioDistanceFactor: number | null;
+  }
+
+  const muscleTrackers = new Map<string, MuscleTracker>();
+  const muscleLastDate = new Map<string, string>();
+  const workoutDateIndex = new Map(
+    workouts.map((w: { id: string; date: string }) => [w.id, w.date])
+  );
+
+  // Strength pass
   for (const ex of strengthExercises as QueryExercise[]) {
     const mg = ex.muscle_group || "OTROS";
-    const existing = muscleMap.get(mg) || { name: mg, volume: 0, sessions: 0 };
+    const existing = muscleTrackers.get(mg) || {
+      name: mg, volume: 0, sessions: 0,
+      strengthDays: null, cardioDays: null, cardioDistanceFactor: null,
+    };
     existing.sessions += 1;
-    existing.volume += (ex.sets?.reduce((v: number, s) => v + (Number(s.weight) * (s.reps || 0)), 0) || 0);
-    muscleMap.set(mg, existing);
+    existing.volume += (
+      ex.sets?.reduce((v: number, s) => v + (Number(s.weight) * (s.reps || 0)), 0) || 0
+    );
+    muscleTrackers.set(mg, existing);
+
+    const date = workoutDateIndex.get(ex.workout_id);
+    if (date) {
+      const prev = muscleLastDate.get(mg);
+      if (!prev || date > prev) muscleLastDate.set(mg, date);
+    }
   }
-  const muscleDistribution = Array.from(muscleMap.values())
+
+  for (const [mg, lastDate] of muscleLastDate) {
+    const entry = muscleTrackers.get(mg);
+    if (entry) {
+      entry.strengthDays = Math.floor(
+        (now.getTime() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24)
+      );
+    }
+  }
+
+  // Cardio pass — per-workout distance from cardio exercises (manual entries)
+  const processedCardioWorkouts = new Set<string>();
+  const cardioDistanceByWorkout = new Map<string, number>();
+  for (const ex of cardioExercises as QueryExercise[]) {
+    const exDistance =
+      ex.sets?.reduce((v: number, s) => v + (Number(s.distance_meters) || 0), 0) || 0;
+    if (exDistance > 0) {
+      processedCardioWorkouts.add(ex.workout_id);
+      const prev = cardioDistanceByWorkout.get(ex.workout_id) || 0;
+      cardioDistanceByWorkout.set(ex.workout_id, prev + exDistance);
+    }
+  }
+
+  for (const [workoutId, distanceMeters] of cardioDistanceByWorkout) {
+    const distanceKm = distanceMeters / 1000;
+    if (distanceKm <= 0) continue;
+
+    let distanceFactor: number;
+    if (distanceKm < 5) distanceFactor = 0.5;
+    else if (distanceKm <= 10) distanceFactor = 0.75;
+    else distanceFactor = 1.0;
+
+    const date = workoutDateIndex.get(workoutId);
+    if (!date) continue;
+    const cardioDaysAgo = Math.floor(
+      (now.getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    for (const muscle of CARDIO_MUSCLES) {
+      const existing = muscleTrackers.get(muscle) || {
+        name: muscle, volume: 0, sessions: 0,
+        strengthDays: null, cardioDays: null, cardioDistanceFactor: null,
+      };
+      existing.sessions += 1;
+      existing.volume += Math.round(distanceMeters);
+
+      if (existing.cardioDays === null || cardioDaysAgo < existing.cardioDays) {
+        existing.cardioDays = cardioDaysAgo;
+        existing.cardioDistanceFactor = distanceFactor;
+      }
+
+      muscleTrackers.set(muscle, existing);
+    }
+  }
+
+  // Cardio pass — .fit uploads with total_cardio_distance on the workout row
+  for (const w of workouts as { id: string; date: string; type: string; total_cardio_distance?: number }[]) {
+    if (processedCardioWorkouts.has(w.id)) continue;
+    if (w.type !== "cardio" || !w.total_cardio_distance || w.total_cardio_distance <= 0) continue;
+
+    const distanceKm = w.total_cardio_distance;
+    let distanceFactor: number;
+    if (distanceKm < 5) distanceFactor = 0.5;
+    else if (distanceKm <= 10) distanceFactor = 0.75;
+    else distanceFactor = 1.0;
+
+    const cardioDaysAgo = Math.floor(
+      (now.getTime() - new Date(w.date).getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    for (const muscle of CARDIO_MUSCLES) {
+      const existing = muscleTrackers.get(muscle) || {
+        name: muscle, volume: 0, sessions: 0,
+        strengthDays: null, cardioDays: null, cardioDistanceFactor: null,
+      };
+      existing.sessions += 1;
+      existing.volume += Math.round(distanceKm * 1000);
+
+      if (existing.cardioDays === null || cardioDaysAgo < existing.cardioDays) {
+        existing.cardioDays = cardioDaysAgo;
+        existing.cardioDistanceFactor = distanceFactor;
+      }
+
+      muscleTrackers.set(muscle, existing);
+    }
+  }
+
+  // Propagation: ESPALDA → SUPERIOR / INFERIOR
+  const espalda = muscleTrackers.get("ESPALDA");
+  if (espalda && espalda.strengthDays !== null) {
+    for (const sub of ["ESPALDA SUPERIOR", "ESPALDA INFERIOR"]) {
+      const existing = muscleTrackers.get(sub);
+      if (!existing) {
+        muscleTrackers.set(sub, {
+          name: sub, volume: 0, sessions: 0,
+          strengthDays: espalda.strengthDays,
+          cardioDays: null, cardioDistanceFactor: null,
+        });
+      } else if (existing.strengthDays === null || espalda.strengthDays < existing.strengthDays) {
+        existing.strengthDays = espalda.strengthDays;
+      }
+    }
+  }
+
+  // Propagation: TRAPECIO → ESPALDA SUPERIOR
+  const trapecio = muscleTrackers.get("TRAPECIO");
+  if (trapecio && trapecio.strengthDays !== null) {
+    const existing = muscleTrackers.get("ESPALDA SUPERIOR");
+    if (!existing) {
+      muscleTrackers.set("ESPALDA SUPERIOR", {
+        name: "ESPALDA SUPERIOR", volume: 0, sessions: 0,
+        strengthDays: trapecio.strengthDays,
+        cardioDays: null, cardioDistanceFactor: null,
+      });
+    } else if (
+      existing.strengthDays === null || trapecio.strengthDays < existing.strengthDays
+    ) {
+      existing.strengthDays = trapecio.strengthDays;
+    }
+  }
+
+  // Merge into final data with effectiveOpacity
+  const muscleDistribution: MuscleGroupData[] = Array.from(muscleTrackers.values())
+    .map((tracker) => {
+      const strengthOpacity =
+        tracker.strengthDays !== null ? getBaseOpacity(tracker.strengthDays) : 0;
+      const cardioOpacity =
+        tracker.cardioDays !== null
+          ? getBaseOpacity(tracker.cardioDays) * (tracker.cardioDistanceFactor || 1)
+          : 0;
+      const effectiveOpacity = Math.max(strengthOpacity, cardioOpacity);
+
+      const strengthDays = tracker.strengthDays ?? 999;
+      const cardioDays = tracker.cardioDays ?? 999;
+      const lastTrainedDays = Math.min(strengthDays, cardioDays);
+
+      return {
+        name: tracker.name,
+        volume: tracker.volume,
+        sessions: tracker.sessions,
+        lastTrainedDays,
+        effectiveOpacity,
+      };
+    })
     .sort((a, b) => b.volume - a.volume);
 
-  // Weekly activity for heatmap (last 12 weeks)
-  const weeklyActivity: { date: string; count: number }[] = [];
-  const twelveWeeksAgo = new Date(now.getTime() - 84 * 24 * 60 * 60 * 1000);
-  for (let d = new Date(twelveWeeksAgo); d <= now; d.setDate(d.getDate() + 1)) {
+  // Weekly activity for calendar (full year)
+  const weeklyActivity: { date: string; count: number; hasCardio: boolean }[] = [];
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const endOfYear = new Date(now.getFullYear(), 11, 31);
+  for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) {
     const dateStr = d.toISOString().split("T")[0];
-    const count = workouts.filter((w: { date: string }) => w.date === dateStr).length;
-    weeklyActivity.push({ date: dateStr, count });
+    const dayWorkouts = workouts.filter((w: { date: string }) => w.date === dateStr);
+    const count = dayWorkouts.length;
+    const hasCardio = dayWorkouts.some((w: { type: string }) => w.type === "cardio" || w.type === "hybrid");
+    weeklyActivity.push({ date: dateStr, count, hasCardio });
   }
 
   return {

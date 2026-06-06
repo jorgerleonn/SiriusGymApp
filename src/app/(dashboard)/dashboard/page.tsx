@@ -142,7 +142,7 @@ export default async function DashboardPage() {
               CONSISTENCIA
             </h3>
             <span className="text-caption text-muted tracking-[1.5px]">
-              ÚLTIMAS 12 SEMANAS
+              {new Date().getFullYear()}
             </span>
           </div>
           <ConsistencyCalendar data={stats?.weeklyActivity ?? []} />

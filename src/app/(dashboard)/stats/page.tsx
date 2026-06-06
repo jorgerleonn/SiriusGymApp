@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useUser } from "@clerk/nextjs";
 import {
+  BarChart,
+  Bar,
   LineChart,
   Line,
   XAxis,
@@ -15,11 +17,16 @@ import {
 } from "recharts";
 import { Dumbbell, TrendingUp, BarChart3, Route } from "lucide-react";
 import { MStripe } from "@/components/ui/m-stripe";
-import { RunningStatsView } from "@/components/running-stats-view";
+import { Combobox } from "@/components/ui/combobox";
 
-interface ChartDataPoint {
+interface CardioSession {
   date: string;
-  value: number;
+  distance_km: number;
+  duration_minutes: number;
+  avg_pace_seconds_per_km: number | null;
+  avg_heart_rate: number | null;
+  total_calories: number | null;
+  hr_zone_seconds: Record<string, number> | null;
 }
 
 interface StrengthStats {
@@ -27,74 +34,274 @@ interface StrengthStats {
   pr: number;
   totalVolume: number;
   timesPerformed: number;
-  volumeOverTime: ChartDataPoint[];
-  maxWeightOverTime: ChartDataPoint[];
+  volumeOverTime: { date: string; value: number }[];
+  maxWeightOverTime: { date: string; value: number }[];
 }
 
+type Tab = "strength" | "cardio";
+type DistanceFilter = "all" | "5k" | "10k" | "15k+";
+
+const DISTANCE_FILTERS: { key: DistanceFilter; label: string }[] = [
+  { key: "all", label: "TODAS" },
+  { key: "5k", label: "5K" },
+  { key: "10k", label: "10K" },
+  { key: "15k+", label: "15K+" },
+];
+
 const formatDate = (dateStr: string) => {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("es-ES", { month: "short", day: "numeric" });
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("es-ES", { month: "short", day: "numeric" });
 };
 
-function ChartTooltip({ active, payload, label, suffix = "" }: {
-  active?: boolean; payload?: { value: number }[]; label?: string; suffix?: string;
+const paceStr = (sec: number | null | undefined): string => {
+  if (!sec) return "-";
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+};
+
+const durationStr = (min: number): string => {
+  if (min <= 0) return "-";
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h > 0) return `${h}H ${m}M`;
+  return `${m}MIN`;
+};
+
+const zoneLabels = ["Z1 RECUP", "Z2 RESIST", "Z3 TEMPO", "Z4 UMBRAL", "Z5 MÁX"];
+const zoneBgColors = [
+  "bg-m-blue-dark",
+  "bg-m-blue-light",
+  "bg-m-blue-light/80",
+  "bg-m-red",
+  "bg-m-red/80",
+];
+const zoneDescriptions = ["< 60%", "60-70%", "70-80%", "80-90%", "> 90%"];
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  suffix = "",
+}: {
+  active?: boolean;
+  payload?: { value: number }[];
+  label?: string;
+  suffix?: string;
 }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-surface-card border border-hairline p-md">
       <p className="text-caption text-muted mb-xxs tracking-[1px]">{label}</p>
-      <p className="text-label-uppercase text-primary">{payload[0].value?.toLocaleString()} {suffix}</p>
+      <p className="text-label-uppercase text-primary">
+        {payload[0].value?.toLocaleString()} {suffix}
+      </p>
     </div>
   );
 }
 
-type StatsData = StrengthStats | null;
-
 export default function StatsPage() {
   const { user, isLoaded } = useUser();
+
+  // Shared
+  const [activeTab, setActiveTab] = useState<Tab>("strength");
   const [exercises, setExercises] = useState<string[]>([]);
-  const [selectedExercise, setSelectedExercise] = useState<string>("");
-  const [statsType, setStatsType] = useState<"strength" | "running" | null>(null);
-  const [stats, setStats] = useState<StatsData>(null);
-  const [runningStats, setRunningStats] = useState<Record<string, unknown> | null>(null);
-  const [totalVolumeBySession, setTotalVolumeBySession] = useState<ChartDataPoint[]>([]);
+  const [totalVolumeBySession, setTotalVolumeBySession] = useState<
+    { date: string; value: number }[]
+  >([]);
   const [loading, setLoading] = useState(false);
 
+  // Strength
+  const [selectedExercise, setSelectedExercise] = useState("");
+  const [strengthStats, setStrengthStats] = useState<StrengthStats | null>(null);
+
+  // Cardio
+  const [cardioSessions, setCardioSessions] = useState<CardioSession[]>([]);
+  const [distanceFilter, setDistanceFilter] = useState<DistanceFilter>("all");
+  const [cardioLoaded, setCardioLoaded] = useState(false);
+
+  // ── Effects ─────────────────────────────────────────────────
+
   useEffect(() => {
-    if (isLoaded && user) {
-      fetch("/api/stats")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.exercises) setExercises(data.exercises);
-          if (data.totalVolumeBySession) setTotalVolumeBySession(data.totalVolumeBySession);
-        });
-    }
+    if (!isLoaded || !user) return;
+    fetch("/api/stats")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.exercises) setExercises(data.exercises as string[]);
+        if (data.totalVolumeBySession)
+          setTotalVolumeBySession(data.totalVolumeBySession as { date: string; value: number }[]);
+      });
+  }, [isLoaded, user]);
+
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    fetch("/api/stats?exercise=CARRERA")
+      .then((res) => res.json())
+      .then((data) => {
+        const stats = data.stats as {
+          sessions?: CardioSession[];
+        } | null;
+        if (data.statsType === "running" && stats?.sessions) {
+          setCardioSessions(stats.sessions);
+        }
+        setCardioLoaded(true);
+      })
+      .catch(() => setCardioLoaded(true));
   }, [isLoaded, user]);
 
   useEffect(() => {
     if (!selectedExercise || !user) return;
-
     const controller = new AbortController();
-    const idle = setTimeout(() => setLoading(true), 0);
-    fetch(`/api/stats?exercise=${encodeURIComponent(selectedExercise)}`, { signal: controller.signal })
+    setLoading(true);
+    fetch(`/api/stats?exercise=${encodeURIComponent(selectedExercise)}`, {
+      signal: controller.signal,
+    })
       .then((res) => res.json())
       .then((data) => {
-        clearTimeout(idle);
-        setStatsType(data.statsType ?? null);
-
-        if (data.statsType === "running") {
-          setRunningStats(data.stats ?? null);
-          setStats(null);
+        if (data.statsType === "strength") {
+          setStrengthStats((data.stats ?? null) as StrengthStats | null);
         } else {
-          setStats(data.stats || null);
-          setRunningStats(null);
+          setStrengthStats(null);
         }
-
         setLoading(false);
       })
-      .catch(() => clearTimeout(idle));
-    return () => { controller.abort(); clearTimeout(idle); };
+      .catch(() => setLoading(false));
+    return () => controller.abort();
   }, [selectedExercise, user]);
+
+  // ── Derived Cardio Data ─────────────────────────────────────
+
+  const filteredSessions = useMemo(() => {
+    return cardioSessions.filter((s) => {
+      switch (distanceFilter) {
+        case "5k":
+          return s.distance_km >= 3 && s.distance_km < 8;
+        case "10k":
+          return s.distance_km >= 8 && s.distance_km < 14;
+        case "15k+":
+          return s.distance_km >= 14;
+        default:
+          return true;
+      }
+    });
+  }, [cardioSessions, distanceFilter]);
+
+  const cardioData = useMemo(() => {
+    const sorted = [...filteredSessions].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    const totalDistance = sorted.reduce((s, session) => s + session.distance_km, 0);
+    const totalMinutes = sorted.reduce((s, session) => s + session.duration_minutes, 0);
+    const totalSessions = sorted.length;
+
+    let paceSum = 0;
+    let paceCount = 0;
+    const aggregatedZones: Record<string, number> = {};
+    const distanceOverTime: { date: string; value: number }[] = [];
+    const paceOverTime: { date: string; value: number }[] = [];
+
+    for (const session of sorted) {
+      distanceOverTime.push({ date: session.date, value: session.distance_km });
+
+      if (session.avg_pace_seconds_per_km) {
+        paceSum += session.avg_pace_seconds_per_km;
+        paceCount++;
+        paceOverTime.push({ date: session.date, value: session.avg_pace_seconds_per_km });
+      }
+
+      if (session.hr_zone_seconds) {
+        for (const [key, sec] of Object.entries(session.hr_zone_seconds)) {
+          aggregatedZones[key] = (aggregatedZones[key] ?? 0) + sec;
+        }
+      }
+    }
+
+    return {
+      totalDistance,
+      totalMinutes,
+      totalSessions,
+      avgPaceSecondsPerKm: paceCount > 0 ? Math.round(paceSum / paceCount) : null,
+      distanceOverTime,
+      paceOverTime,
+      hrZoneSeconds: Object.keys(aggregatedZones).length > 0 ? aggregatedZones : null,
+    };
+  }, [filteredSessions]);
+
+  // ── Render Helpers ──────────────────────────────────────────
+
+  const renderHrZonePanel = () => {
+    if (!cardioData.hrZoneSeconds) return null;
+    const zoneArray = [
+      cardioData.hrZoneSeconds.zone1 ?? 0,
+      cardioData.hrZoneSeconds.zone2 ?? 0,
+      cardioData.hrZoneSeconds.zone3 ?? 0,
+      cardioData.hrZoneSeconds.zone4 ?? 0,
+      cardioData.hrZoneSeconds.zone5 ?? 0,
+    ];
+    const totalZoneSeconds = zoneArray.reduce((a, b) => a + b, 0);
+    if (totalZoneSeconds <= 0) return null;
+
+    return (
+      <div className="bg-surface-card p-lg">
+        <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md flex items-center gap-md">
+          <span className="w-2 h-2 bg-m-red" />
+          DISTRIBUCIÓN DE FC
+        </h3>
+        <div className="space-y-sm">
+          {zoneArray.map((seconds, i) => {
+            const pct = (seconds / totalZoneSeconds) * 100;
+            const minutes = Math.round(seconds / 60);
+            return (
+              <div
+                key={i}
+                className="grid grid-cols-[80px_1fr_48px_36px] gap-sm items-center"
+              >
+                <span className="text-caption text-muted tracking-[1px] text-left flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 shrink-0 ${zoneBgColors[i]}`} />
+                  {zoneLabels[i]}
+                </span>
+                <div className="h-3 bg-canvas relative">
+                  <div
+                    className={`h-full ${zoneBgColors[i]} transition-all duration-500`}
+                    style={{ width: `${Math.max(pct, 0.5)}%` }}
+                  />
+                </div>
+                <span className="text-caption text-primary text-right tabular-nums">
+                  {minutes}M
+                </span>
+                <span className="text-caption text-muted text-right tabular-nums">
+                  {pct.toFixed(0)}%
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-5 gap-xs mt-md pt-md border-t border-hairline">
+          {zoneDescriptions.map((desc, i) => (
+            <span
+              key={i}
+              className="text-caption text-muted/50 text-center text-[10px] tracking-[0.5px]"
+            >
+              {desc}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const strengthExercises = useMemo(() => {
+    const s = new Map<string, string>();
+    for (const e of exercises) {
+      if (e === "CARRERA") continue;
+      const key = e.toUpperCase();
+      if (!s.has(key)) s.set(key, e);
+    }
+    return [...s.values()].sort();
+  }, [exercises]);
+
+  // ── Main Render ─────────────────────────────────────────────
 
   if (!isLoaded) {
     return (
@@ -104,8 +311,6 @@ export default function StatsPage() {
     );
   }
 
-  const isRunning = statsType === "running" && runningStats;
-
   return (
     <div>
       <MStripe className="mb-lg" />
@@ -113,211 +318,409 @@ export default function StatsPage() {
         ESTADÍSTICAS
       </h1>
 
-      {/* Exercise Selector */}
-      <div className="mb-xl">
-        <label className="block text-caption text-muted mb-xs tracking-[1px]">
-          SELECCIONA UN EJERCICIO
-        </label>
-        <select
-          value={selectedExercise}
-          onChange={(e) => setSelectedExercise(e.target.value)}
-          className="w-full bg-surface-card border border-hairline rounded-none px-md py-sm text-primary focus:border-primary outline-none text-body-md tracking-[0]"
-        >
-          <option value="" className="text-muted">SELECCIONA UN EJERCICIO</option>
-          {exercises.map((ex) => (
-            <option key={ex} value={ex}>{ex}</option>
-          ))}
-        </select>
+      {/* ── Tabs ─────────────────────────────────────────── */}
+      <div className="flex gap-px bg-hairline mb-xl">
+        {(["strength", "cardio"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 p-md text-label-uppercase tracking-[1.5px] transition-colors rounded-none ${
+              activeTab === tab
+                ? "bg-surface-card text-primary border-b-2 border-primary"
+                : "bg-canvas text-muted hover:text-primary hover:bg-surface-soft"
+            }`}
+          >
+            <span className="flex items-center justify-center gap-sm">
+              {tab === "strength" ? (
+                <Dumbbell className="w-4 h-4" />
+              ) : (
+                <Route className="w-4 h-4" />
+              )}
+              {tab === "strength" ? "FUERZA" : "CARDIO / RUNNING"}
+            </span>
+          </button>
+        ))}
       </div>
 
-      {/* Running Stats View */}
-      {selectedExercise && !loading && isRunning && runningStats && (
-        <RunningStatsView stats={runningStats as {
-          totalDistance: number;
-          totalMinutes: number;
-          totalSessions: number;
-          avgPaceSecondsPerKm: number | null;
-          avgHeartRate: number | null;
-          totalCalories: number;
-          distanceOverTime: ChartDataPoint[];
-          paceOverTime: ChartDataPoint[];
-          hrOverTime: ChartDataPoint[];
-          hrZoneSeconds: Record<string, number> | null;
-        }} />
-      )}
-
-      {/* Strength Stats */}
-      {selectedExercise && !loading && !isRunning && stats && (
-        <>
-          {/* KPI Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-hairline mb-xl">
-            <div className="bg-surface-card p-lg">
-              <p className="text-caption text-muted mb-xs tracking-[1px]">RÉCORD PERSONAL</p>
-              <p className="text-display-sm font-display text-primary">{stats.pr} kg</p>
-            </div>
-            <div className="bg-surface-card p-lg">
-              <p className="text-caption text-muted mb-xs tracking-[1px]">VOLUMEN TOTAL</p>
-              <p className="text-display-sm font-display text-primary">
-                {stats.totalVolume.toLocaleString()} kg
-              </p>
-            </div>
-            <div className="bg-surface-card p-lg">
-              <p className="text-caption text-muted mb-xs tracking-[1px]">VECES REALIZADO</p>
-              <p className="text-display-sm font-display text-primary">{stats.timesPerformed}</p>
-            </div>
+      {/* ── STRENGTH VIEW ────────────────────────────────── */}
+      {activeTab === "strength" && (
+        <div>
+          <div className="mb-xl">
+            <label className="block text-caption text-muted mb-xs tracking-[1px]">
+              SELECCIONA UN EJERCICIO
+            </label>
+            <Combobox
+              value={selectedExercise}
+              onChange={setSelectedExercise}
+              items={strengthExercises}
+              placeholder="SELECCIONA UN EJERCICIO"
+            />
           </div>
 
-          {/* Charts */}
-          <div className="space-y-xl">
-            <div>
-              <h3 className="text-title-sm font-display text-primary tracking-[0] flex items-center gap-md mb-md">
-                <BarChart3 className="w-4 h-4 text-m-blue-light" />
-                VOLUMEN POR SESIÓN
-              </h3>
-              <div className="h-48 sm:h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={stats.volumeOverTime}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#3c3c3c" />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatDate}
-                      stroke="#3c3c3c"
-                      fontSize={10}
-                      tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
-                    />
-                    <YAxis
-                      stroke="#3c3c3c"
-                      fontSize={10}
-                      tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
-                      tickFormatter={(v) => `${v}`}
-                      width={40}
-                    />
-                    <Tooltip content={<ChartTooltip suffix="kg" />} />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#0066b1"
-                      strokeWidth={2}
-                      dot={{ fill: "#0066b1", strokeWidth: 0, r: 3 }}
-                      activeDot={{ r: 5, fill: "#0066b1" }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+          {loading && (
+            <div className="flex items-center justify-center py-xxl">
+              <div className="text-caption text-muted tracking-[1px]">CARGANDO...</div>
             </div>
+          )}
 
-            <div>
-              <h3 className="text-title-sm font-display text-primary tracking-[0] flex items-center gap-md mb-md">
-                <TrendingUp className="w-4 h-4 text-m-blue-dark" />
-                PESO MÁXIMO POR SESIÓN
-              </h3>
-              <div className="h-48 sm:h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={stats.maxWeightOverTime}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#3c3c3c" />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatDate}
-                      stroke="#3c3c3c"
-                      fontSize={10}
-                      tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
-                    />
-                    <YAxis
-                      stroke="#3c3c3c"
-                      fontSize={10}
-                      tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
-                      tickFormatter={(v) => `${v}`}
-                      width={40}
-                    />
-                    <Tooltip content={<ChartTooltip suffix="kg" />} />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#1c69d4"
-                      strokeWidth={2}
-                      dot={{ fill: "#1c69d4", strokeWidth: 0, r: 3 }}
-                      activeDot={{ r: 5, fill: "#1c69d4" }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* No data state */}
-      {selectedExercise && !loading && !stats && !isRunning && (
-        <div className="text-center py-xxl border border-hairline">
-          {selectedExercise === "CARRERA" ? (
+          {!loading && selectedExercise && strengthStats && (
             <>
-              <Route className="w-8 h-8 text-muted mx-auto mb-md" />
-              <p className="text-body-md text-muted">NO HAY DATOS DE CARDIO</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-hairline mb-xl">
+                <div className="bg-surface-card p-lg">
+                  <p className="text-caption text-muted mb-xs tracking-[1px]">RÉCORD PERSONAL</p>
+                  <p className="text-display-sm font-display text-primary">{strengthStats.pr} kg</p>
+                </div>
+                <div className="bg-surface-card p-lg">
+                  <p className="text-caption text-muted mb-xs tracking-[1px]">VOLUMEN TOTAL</p>
+                  <p className="text-display-sm font-display text-primary">
+                    {strengthStats.totalVolume.toLocaleString()} kg
+                  </p>
+                </div>
+                <div className="bg-surface-card p-lg">
+                  <p className="text-caption text-muted mb-xs tracking-[1px]">VECES REALIZADO</p>
+                  <p className="text-display-sm font-display text-primary">
+                    {strengthStats.timesPerformed}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-xl">
+                <div>
+                  <h3 className="text-title-sm font-display text-primary tracking-[0] flex items-center gap-md mb-md">
+                    <BarChart3 className="w-4 h-4 text-m-blue-light" />
+                    VOLUMEN POR SESIÓN
+                  </h3>
+                  <div className="h-48 sm:h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={strengthStats.volumeOverTime}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#3c3c3c" />
+                        <XAxis
+                          dataKey="date"
+                          tickFormatter={formatDate}
+                          stroke="#3c3c3c"
+                          fontSize={10}
+                          tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                        />
+                        <YAxis
+                          stroke="#3c3c3c"
+                          fontSize={10}
+                          tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                          tickFormatter={(v) => `${v}`}
+                          width={40}
+                        />
+                        <Tooltip content={<ChartTooltip suffix="kg" />} />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#0066b1"
+                          strokeWidth={2}
+                          dot={{ fill: "#0066b1", strokeWidth: 0, r: 3 }}
+                          activeDot={{ r: 5, fill: "#0066b1" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-title-sm font-display text-primary tracking-[0] flex items-center gap-md mb-md">
+                      <TrendingUp className="w-4 h-4 text-m-blue-dark" />
+                      PESO MÁXIMO POR SESIÓN
+                  </h3>
+                  <div className="h-48 sm:h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={strengthStats.maxWeightOverTime}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#3c3c3c" />
+                        <XAxis
+                          dataKey="date"
+                          tickFormatter={formatDate}
+                          stroke="#3c3c3c"
+                          fontSize={10}
+                          tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                        />
+                        <YAxis
+                          stroke="#3c3c3c"
+                          fontSize={10}
+                          tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                          tickFormatter={(v) => `${v}`}
+                          width={40}
+                        />
+                        <Tooltip content={<ChartTooltip suffix="kg" />} />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#0066b1"
+                          strokeWidth={2}
+                          dot={{ fill: "#0066b1", strokeWidth: 0, r: 3 }}
+                          activeDot={{ r: 5, fill: "#0066b1" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
             </>
-          ) : (
-            <>
+          )}
+
+          {!loading && selectedExercise && !strengthStats && (
+            <div className="text-center py-xxl border border-hairline">
               <Dumbbell className="w-8 h-8 text-muted mx-auto mb-md" />
               <p className="text-body-md text-muted">NO HAY DATOS PARA ESTE EJERCICIO</p>
+            </div>
+          )}
+
+          {!selectedExercise && (
+            <>
+              {totalVolumeBySession.length > 0 && (
+                <div className="mb-xl">
+                  <h3 className="text-title-sm font-display text-primary tracking-[0] flex items-center gap-md mb-md">
+                    <BarChart3 className="w-4 h-4 text-m-blue-light" />
+                    VOLUMEN TOTAL POR SESIÓN
+                  </h3>
+                  <div className="h-48 sm:h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={totalVolumeBySession}>
+                        <defs>
+                          <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#0066b1" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#0066b1" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="#3c3c3c"
+                          vertical={false}
+                        />
+                        <XAxis
+                          dataKey="date"
+                          tickFormatter={formatDate}
+                          stroke="#3c3c3c"
+                          fontSize={10}
+                          tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          stroke="#3c3c3c"
+                          fontSize={10}
+                          tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                          tickFormatter={(v) => `${v}`}
+                          width={40}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip content={<ChartTooltip suffix="kg" />} />
+                        <Area
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#0066b1"
+                          strokeWidth={2}
+                          fill="url(#volumeGradient)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+              <div className="text-center py-xxl border border-hairline">
+                <BarChart3 className="w-8 h-8 text-muted mx-auto mb-md" />
+                <p className="text-body-md text-muted">
+                  SELECCIONA UN EJERCICIO PARA VER ESTADÍSTICAS
+                </p>
+              </div>
             </>
           )}
         </div>
       )}
 
-      {/* Default empty state */}
-      {!selectedExercise && (
-        <>
-          {totalVolumeBySession.length > 0 && (
-            <div className="mb-xl">
-              <h3 className="text-title-sm font-display text-primary tracking-[0] flex items-center gap-md mb-md">
-                <BarChart3 className="w-4 h-4 text-m-blue-light" />
-                VOLUMEN TOTAL POR SESIÓN
-              </h3>
-              <div className="h-48 sm:h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={totalVolumeBySession}>
-                    <defs>
-                      <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#0066b1" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#0066b1" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#3c3c3c" vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatDate}
-                      stroke="#3c3c3c"
-                      fontSize={10}
-                      tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      stroke="#3c3c3c"
-                      fontSize={10}
-                      tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
-                      tickFormatter={(v) => `${v}`}
-                      width={40}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip content={<ChartTooltip suffix="kg" />} />
-                    <Area
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#0066b1"
-                      strokeWidth={2}
-                      fill="url(#volumeGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+      {/* ── CARDIO VIEW ──────────────────────────────────── */}
+      {activeTab === "cardio" && (
+        <div>
+          {/* Distance Filter */}
+          <div className="flex items-center gap-md mb-lg">
+            <span className="text-caption text-muted tracking-[1px]">DISTANCIA:</span>
+            <div className="flex gap-xs">
+              {DISTANCE_FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setDistanceFilter(f.key)}
+                  className={`px-md py-xs text-caption tracking-[1px] border transition-colors ${
+                    distanceFilter === f.key
+                      ? "border-primary text-primary bg-surface-elevated"
+                      : "border-hairline text-muted hover:text-primary hover:border-primary"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {cardioData.totalSessions > 0 ? (
+            <>
+              {/* KPI Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-hairline mb-xl">
+                <div className="bg-surface-card p-lg">
+                  <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
+                    DISTANCIA TOTAL
+                  </p>
+                  <p className="text-display-sm font-display text-primary tracking-[0]">
+                    {cardioData.totalDistance.toFixed(1)}{" "}
+                    <span className="text-body-sm text-muted">km</span>
+                  </p>
+                </div>
+                <div className="bg-surface-card p-lg">
+                  <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
+                    TIEMPO TOTAL
+                  </p>
+                  <p className="text-display-sm font-display text-primary tracking-[0]">
+                    {durationStr(cardioData.totalMinutes)}
+                  </p>
+                </div>
+                <div className="bg-surface-card p-lg">
+                  <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
+                    RITMO MEDIO
+                  </p>
+                  <p className="text-display-sm font-display text-primary tracking-[0]">
+                    {paceStr(cardioData.avgPaceSecondsPerKm)}{" "}
+                    <span className="text-body-sm text-muted">/km</span>
+                  </p>
+                </div>
+                <div className="bg-surface-card p-lg">
+                  <p className="text-caption text-muted mb-xxs tracking-[1.5px]">SESIONES</p>
+                  <p className="text-display-sm font-display text-primary tracking-[0]">
+                    {cardioData.totalSessions}
+                  </p>
+                </div>
               </div>
+
+              {/* Distance Per Session */}
+              <div className="bg-surface-card border border-hairline p-lg mb-lg">
+                <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md flex items-center gap-md">
+                    <span className="w-2 h-2 bg-m-red" />
+                    DISTANCIA POR SESIÓN
+                </h3>
+                <div className="h-48 sm:h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={cardioData.distanceOverTime} barCategoryGap={4}>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#3c3c3c"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="date"
+                        tickFormatter={formatDate}
+                        stroke="#3c3c3c"
+                        fontSize={10}
+                        tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        stroke="#3c3c3c"
+                        fontSize={10}
+                        tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                        tickFormatter={(v) => `${v}`}
+                        width={40}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip content={<ChartTooltip suffix="km" />} />
+                      <Bar dataKey="value" fill="#e22718" radius={[0, 0, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Pace + HR Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-hairline mb-lg">
+                {cardioData.paceOverTime.length > 0 && (
+                  <div className="bg-surface-card p-lg">
+                    <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md flex items-center gap-md">
+                      <span className="w-2 h-2 bg-m-blue-light" />
+                      EVOLUCIÓN DEL RITMO
+                    </h3>
+                    <div className="h-48 sm:h-56">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={cardioData.paceOverTime}>
+                          <defs>
+                            <linearGradient id="paceGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#1c69d4" stopOpacity={0.25} />
+                              <stop offset="95%" stopColor="#1c69d4" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="#3c3c3c"
+                            vertical={false}
+                          />
+                          <XAxis
+                            dataKey="date"
+                            tickFormatter={formatDate}
+                            stroke="#3c3c3c"
+                            fontSize={10}
+                            tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            stroke="#3c3c3c"
+                            fontSize={10}
+                            tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                            tickFormatter={(v) => paceStr(v)}
+                            width={45}
+                            domain={["dataMin - 30", "dataMax + 30"]}
+                            axisLine={false}
+                            tickLine={false}
+                            reversed
+                          />
+                          <Tooltip
+                            content={({ active, payload, label }) => {
+                              if (!active || !payload?.length) return null;
+                              return (
+                                <div className="bg-surface-card border border-hairline p-md">
+                                  <p className="text-caption text-muted mb-xxs tracking-[1px]">
+                                    {label}
+                                  </p>
+                                  <p className="text-label-uppercase text-primary">
+                                    {paceStr(payload[0].value as number)} /km
+                                  </p>
+                                </div>
+                              );
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="value"
+                            stroke="#1c69d4"
+                            strokeWidth={2}
+                            fill="url(#paceGradient)"
+                            dot={{ fill: "#1c69d4", strokeWidth: 0, r: 3 }}
+                            activeDot={{ r: 5, fill: "#1c69d4" }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {renderHrZonePanel()}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-xxl border border-hairline">
+              <Route className="w-8 h-8 text-muted mx-auto mb-md" />
+              <p className="text-body-md text-muted">
+                {!cardioLoaded
+                  ? "CARGANDO..."
+                  : cardioSessions.length === 0
+                    ? "NO HAY DATOS DE CARDIO"
+                    : "NO HAY SESIONES EN ESTE RANGO"}
+              </p>
             </div>
           )}
-          <div className="text-center py-xxl border border-hairline">
-            <BarChart3 className="w-8 h-8 text-muted mx-auto mb-md" />
-            <p className="text-body-md text-muted">SELECCIONA UN EJERCICIO PARA VER ESTADÍSTICAS</p>
-          </div>
-        </>
+        </div>
       )}
     </div>
   );

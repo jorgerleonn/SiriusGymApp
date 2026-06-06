@@ -26,6 +26,36 @@ interface ExerciseInput {
   sets: (StrengthSetInput | CardioSetInput)[];
 }
 
+async function autoFillMuscleGroups(exercises: ExerciseInput[]): Promise<void> {
+  const namesNeedingLookup = exercises
+    .filter((ex) => !ex.muscle_group && ex.name.trim())
+    .map((ex) => ex.name.trim());
+
+  if (namesNeedingLookup.length === 0) return;
+
+  const supabase = createSupabaseAdmin();
+  const { data: existing } = await supabase
+    .from("exercises")
+    .select("name, muscle_group")
+    .in("name", namesNeedingLookup)
+    .not("muscle_group", "is", null);
+
+  if (!existing) return;
+
+  const mgMap = new Map<string, string>();
+  for (const ex of existing) {
+    if (ex.muscle_group && !mgMap.has(ex.name)) {
+      mgMap.set(ex.name, ex.muscle_group);
+    }
+  }
+
+  for (const ex of exercises) {
+    if (!ex.muscle_group && mgMap.has(ex.name.trim())) {
+      ex.muscle_group = mgMap.get(ex.name.trim());
+    }
+  }
+}
+
 export async function createWorkout(
   name: string,
   exercises: ExerciseInput[],
@@ -54,6 +84,8 @@ export async function createWorkout(
     console.error("Error creating workout:", workoutError);
     return { error: workoutError.message };
   }
+
+  await autoFillMuscleGroups(exercises);
 
   for (let i = 0; i < exercises.length; i++) {
     const ex = exercises[i];
@@ -137,7 +169,7 @@ export async function updateWorkout(
   workoutId: string,
   name: string,
   exercises: ExerciseInput[],
-  options?: { notes?: string; duration_minutes?: number }
+  options?: { notes?: string; duration_minutes?: number; date?: string }
 ) {
   const { userId } = await auth();
   if (!userId) return { error: "No autorizado" };
@@ -145,9 +177,10 @@ export async function updateWorkout(
 
   const supabase = createSupabaseAdmin();
 
-  const updateData: { name: string; notes?: string | null; duration_minutes?: number | null } = { name: name.trim() };
+  const updateData: { name: string; notes?: string | null; duration_minutes?: number | null; date?: string } = { name: name.trim() };
   if (options?.notes !== undefined) updateData.notes = options.notes;
   if (options?.duration_minutes !== undefined) updateData.duration_minutes = options.duration_minutes;
+  if (options?.date !== undefined) updateData.date = options.date;
 
   const { error: updateError } = await supabase
     .from("workouts")
@@ -168,6 +201,8 @@ export async function updateWorkout(
   for (const exId of existingExercises?.map((e: { id: string }) => e.id) || []) {
     await supabase.from("exercises").delete().eq("id", exId);
   }
+
+  await autoFillMuscleGroups(exercises);
 
   for (let i = 0; i < exercises.length; i++) {
     const ex = exercises[i];

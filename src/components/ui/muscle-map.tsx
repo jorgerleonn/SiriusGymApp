@@ -1,28 +1,80 @@
 "use client";
 
+import { useMemo } from "react";
+import Body, { type ExtendedBodyPart } from "react-muscle-highlighter";
 import type { MuscleGroupData } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
-const MUSCLE_COLORS: Record<string, string> = {
-  PECTORAL: "from-m-blue-light/80 to-m-blue-light/40",
-  ESPALDA: "from-m-blue-dark/80 to-m-blue-dark/40",
-  CUÁDRICEPS: "from-m-red/80 to-m-red/40",
-  ISQUIOTIBIALES: "from-m-red/60 to-m-red/30",
-  GLÚTEOS: "from-m-red/80 to-m-red/40",
-  HOMBROS: "from-m-blue-light/60 to-m-blue-light/30",
-  BÍCEPS: "from-m-blue-dark/60 to-m-blue-dark/30",
-  TRÍCEPS: "from-m-blue-dark/50 to-m-blue-dark/20",
-  ABDOMEN: "from-primary/40 to-primary/10",
-  GEMELOS: "from-m-red/50 to-m-red/20",
-  TRAPECIO: "from-m-blue-light/70 to-m-blue-light/30",
-  OTROS: "from-hairline to-hairline/50",
+const FATIGUE_COLOR = "#F57627";
+const RECOVERY_COLOR = "#27F5BE";
+const DEFAULT_FILL = "#111111";
+const DEFAULT_STROKE = "#3A3A3A";
+
+const RECOVERY_DAYS: Record<string, number> = {
+  CUÁDRICEPS: 3,
+  ISQUIOTIBIALES: 3,
+  GLÚTEOS: 3,
+  "ESPALDA SUPERIOR": 3,
+  "ESPALDA INFERIOR": 3,
+  PECTORAL: 3,
+  HOMBROS: 2,
+  TRÍCEPS: 2,
+  BÍCEPS: 2,
+  GEMELOS: 2,
+  "TIBIAL ANTERIOR": 2,
+  ABDOMEN: 1,
 };
 
-function getColor(name: string): string {
-  const key = Object.keys(MUSCLE_COLORS).find(
-    (k) => name.toUpperCase().includes(k) || k.includes(name.toUpperCase())
+const SLUG_MAP: Record<string, string> = {
+  CUÁDRICEPS: "quadriceps",
+  ISQUIOTIBIALES: "hamstring",
+  GLÚTEOS: "gluteal",
+  "ESPALDA SUPERIOR": "upper-back",
+  "ESPALDA INFERIOR": "lower-back",
+  PECTORAL: "chest",
+  HOMBROS: "deltoids",
+  TRÍCEPS: "triceps",
+  BÍCEPS: "biceps",
+  GEMELOS: "calves",
+  "TIBIAL ANTERIOR": "tibialis",
+  ABDOMEN: "abs",
+};
+
+const FRONT_SLUGS = new Set([
+  "quadriceps", "chest", "deltoids", "biceps", "abs",
+  "tibialis", "triceps", "calves",
+]);
+
+const BACK_SLUGS = new Set([
+  "upper-back", "lower-back", "triceps", "gluteal",
+  "hamstring", "calves", "deltoids",
+]);
+
+function FatigueLegend() {
+  return (
+    <div className="flex items-center gap-sm mt-md pt-md border-t border-hairline">
+      <div className="flex items-center gap-1">
+        <div className="w-2.5 h-2.5 rounded-none" style={{ backgroundColor: FATIGUE_COLOR, opacity: 1 }} />
+        <span className="text-caption text-muted/60 text-[10px] tracking-[0.5px]">HOY</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="w-2.5 h-2.5 rounded-none" style={{ backgroundColor: FATIGUE_COLOR, opacity: 0.8 }} />
+        <span className="text-caption text-muted/60 text-[10px] tracking-[0.5px]">1D</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="w-2.5 h-2.5 rounded-none" style={{ backgroundColor: FATIGUE_COLOR, opacity: 0.6 }} />
+        <span className="text-caption text-muted/60 text-[10px] tracking-[0.5px]">2D</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="w-2.5 h-2.5 rounded-none" style={{ backgroundColor: FATIGUE_COLOR, opacity: 0.4 }} />
+        <span className="text-caption text-muted/60 text-[10px] tracking-[0.5px]">3D</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="w-2.5 h-2.5 rounded-none" style={{ backgroundColor: FATIGUE_COLOR, opacity: 0 }} />
+        <span className="text-caption text-muted/60 text-[10px] tracking-[0.5px]">5D+</span>
+      </div>
+      <span className="text-caption text-muted/30 text-[10px] tracking-[0.5px] ml-auto">FATIGA</span>
+    </div>
   );
-  return MUSCLE_COLORS[key || "OTROS"];
 }
 
 interface MuscleMapProps {
@@ -30,7 +82,43 @@ interface MuscleMapProps {
 }
 
 export function MuscleMap({ data }: MuscleMapProps) {
-  const maxVolume = Math.max(...data.map((d) => d.volume), 1);
+  const trackedIds = useMemo(() => new Set(Object.keys(SLUG_MAP)), []);
+
+  const frontData: ExtendedBodyPart[] = useMemo(() => {
+    return data
+      .filter((d) => {
+        const slug = SLUG_MAP[d.name];
+        return slug && FRONT_SLUGS.has(slug) && d.effectiveOpacity > 0;
+      })
+      .map((d) => ({
+        slug: SLUG_MAP[d.name] as ExtendedBodyPart["slug"],
+        color: `rgba(245,118,39,${d.effectiveOpacity})`,
+      }));
+  }, [data]);
+
+  const backData: ExtendedBodyPart[] = useMemo(() => {
+    return data
+      .filter((d) => {
+        const slug = SLUG_MAP[d.name];
+        return slug && BACK_SLUGS.has(slug) && d.effectiveOpacity > 0;
+      })
+      .map((d) => ({
+        slug: SLUG_MAP[d.name] as ExtendedBodyPart["slug"],
+        color: `rgba(245,118,39,${d.effectiveOpacity})`,
+      }));
+  }, [data]);
+
+  const fatiguedMuscles = useMemo(() => {
+    return data
+      .filter((d) => trackedIds.has(d.name))
+      .sort((a, b) => a.lastTrainedDays - b.lastTrainedDays)
+      .map((d) => {
+        const recoveryDays = RECOVERY_DAYS[d.name] ?? 3;
+        const remainingDays = recoveryDays - d.lastTrainedDays;
+        return { ...d, remainingDays };
+      })
+      .filter((d) => d.remainingDays > 0);
+  }, [data, trackedIds]);
 
   if (data.length === 0) {
     return (
@@ -41,31 +129,86 @@ export function MuscleMap({ data }: MuscleMapProps) {
   }
 
   return (
-    <div className="space-y-xs">
-      {data.slice(0, 8).map((item) => {
-        const pct = (item.volume / maxVolume) * 100;
-        return (
-          <div key={item.name} className="space-y-xxs">
-            <div className="flex justify-between items-center">
-              <span className="text-caption text-muted tracking-[1px]">
-                {item.name}
-              </span>
-              <span className="text-caption text-primary tracking-[1px]">
-                {(item.volume / 1000).toFixed(1)}k kg
-              </span>
-            </div>
-            <div className="h-1.5 bg-surface-elevated rounded-none overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-none bg-gradient-to-r transition-all duration-500",
-                  getColor(item.name)
-                )}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
+    <div>
+      <div className="flex justify-center gap-4 md:gap-8">
+        <div className="flex flex-col items-center">
+          <Body
+            data={frontData}
+            side="front"
+            gender="male"
+            scale={0.75}
+            defaultFill={DEFAULT_FILL}
+            defaultStroke={DEFAULT_STROKE}
+            defaultStrokeWidth={0.4}
+            border={DEFAULT_STROKE}
+            hiddenParts={["hair"]}
+          />
+          <span className="text-caption text-muted/40 text-[10px] tracking-[1px] mt-1">
+            FRONTAL
+          </span>
+        </div>
+        <div className="flex flex-col items-center">
+          <Body
+            data={backData}
+            side="back"
+            gender="male"
+            scale={0.75}
+            defaultFill={DEFAULT_FILL}
+            defaultStroke={DEFAULT_STROKE}
+            defaultStrokeWidth={0.4}
+            border={DEFAULT_STROKE}
+            hiddenParts={["hair"]}
+          />
+          <span className="text-caption text-muted/40 text-[10px] tracking-[1px] mt-1">
+            POSTERIOR
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-md space-y-1">
+        {fatiguedMuscles.length === 0 ? (
+          <div className="flex items-center justify-center py-md">
+            <span
+              className="text-caption text-center text-[10px] tracking-[1px]"
+              style={{ color: RECOVERY_COLOR }}
+            >
+              100% RECUPERADO. LISTO PARA ENTRENAR.
+            </span>
           </div>
-        );
-      })}
+        ) : (
+          fatiguedMuscles.map((d) => {
+            const label =
+              d.remainingDays === 1 ? "MAÑANA" : `FALTAN ${d.remainingDays}D`;
+
+            return (
+              <div key={d.name} className="flex justify-between items-center">
+                <div className="flex items-center gap-1.5">
+                  <div
+                    className="w-2 h-2 rounded-none shrink-0"
+                    style={{
+                      backgroundColor: FATIGUE_COLOR,
+                      opacity: d.effectiveOpacity || 0.05,
+                    }}
+                  />
+                  <span className="text-caption text-muted tracking-[1px]">
+                    {d.name}
+                  </span>
+                </div>
+                <span
+                  className="text-caption text-right tabular-nums"
+                  style={{
+                    color: d.lastTrainedDays <= 3 ? "#e6e6e6" : "#7e7e7e",
+                  }}
+                >
+                  {label}
+                </span>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <FatigueLegend />
     </div>
   );
 }
