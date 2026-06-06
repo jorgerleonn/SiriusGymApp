@@ -1,5 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
+const RouteMap = dynamic(() => import("@/components/ui/route-map").then((m) => m.RouteMap), {
+  ssr: false,
+  loading: () => (
+    <div className="bg-surface-card border border-hairline p-lg">
+      <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-sm">RECORRIDO</h3>
+      <p className="text-caption text-muted/50 tracking-[1px]">CARGANDO MAPA...</p>
+    </div>
+  ),
+});
+
 interface CardioData {
   total_cardio_distance: number | null;
   duration_minutes: number | null;
@@ -8,6 +20,7 @@ interface CardioData {
   max_heart_rate: number | null;
   total_calories: number | null;
   hr_zone_seconds: Record<string, number> | null;
+  route_data: [number, number][] | null;
   notes: string | null;
 }
 
@@ -106,6 +119,11 @@ export function CardioDetailView({ workout }: { workout: CardioData }) {
           sub="POR TIEMPO"
         />
       </div>
+
+      {/* Route Map */}
+      {workout.route_data && workout.route_data.length > 1 && (
+        <RouteMap route={workout.route_data} />
+      )}
 
       {/* HR Zone Breakdown */}
       {zoneArray && totalZoneSeconds > 0 && (

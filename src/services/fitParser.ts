@@ -18,6 +18,8 @@ export interface FitRecord {
   speed: number | null;
   altitude: number | null;
   cadence: number | null;
+  positionLat: number | null;
+  positionLong: number | null;
 }
 
 export interface FitParseResult {
@@ -27,6 +29,7 @@ export interface FitParseResult {
   paceSecondsPerKm: number | null;
   distanceKm: number;
   movingTimeMinutes: number;
+  route: [number, number][];
 }
 
 function safeNumber(val: unknown): number | null {
@@ -153,17 +156,29 @@ export async function parseFitFile(
   const avgSpeed = getSessionField(session, "avg_speed");
   const totalCalories = getSessionField(session, "total_calories");
 
-  const mappedRecords: FitRecord[] = records.map((r) => ({
-    timestamp:
-      r.timestamp instanceof Date
-        ? r.timestamp.getTime() / 1000
-        : safeNumber(r.timestamp as number) ?? 0,
-    heartRate: getSessionField(r as Record<string, unknown>, "heart_rate"),
-    distance: getSessionField(r as Record<string, unknown>, "distance"),
-    speed: getSessionField(r as Record<string, unknown>, "speed"),
-    altitude: getSessionField(r as Record<string, unknown>, "altitude"),
-    cadence: getSessionField(r as Record<string, unknown>, "cadence"),
-  }));
+  const mappedRecords: FitRecord[] = records.map((r) => {
+    const rawLat = r.position_lat ?? r.positionLat;
+    const rawLng = r.position_long ?? r.positionLong;
+    return {
+      timestamp:
+        r.timestamp instanceof Date
+          ? r.timestamp.getTime() / 1000
+          : safeNumber(r.timestamp as number) ?? 0,
+      heartRate: getSessionField(r as Record<string, unknown>, "heart_rate"),
+      distance: getSessionField(r as Record<string, unknown>, "distance"),
+      speed: getSessionField(r as Record<string, unknown>, "speed"),
+      altitude: getSessionField(r as Record<string, unknown>, "altitude"),
+      cadence: getSessionField(r as Record<string, unknown>, "cadence"),
+      positionLat: safeNumber(rawLat as number),
+      positionLong: safeNumber(rawLng as number),
+    };
+  });
+
+  const route: [number, number][] = mappedRecords
+    .filter((r): r is FitRecord & { positionLat: number; positionLong: number } =>
+      r.positionLat !== null && r.positionLong !== null
+    )
+    .map((r) => [r.positionLat, r.positionLong]);
 
   const pace = calculatePace(totalMovingTime, totalDistance);
   const hrZoneSeconds = calculateHRZoneSeconds(mappedRecords, maxHeartRate, userAge);
@@ -184,5 +199,6 @@ export async function parseFitFile(
     paceSecondsPerKm: pace,
     distanceKm: Math.round((totalDistance / 10)) / 100,
     movingTimeMinutes: Math.round(totalMovingTime / 60),
+    route,
   };
 }

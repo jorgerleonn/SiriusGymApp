@@ -15,6 +15,7 @@ export interface Workout {
   max_heart_rate: number | null;
   avg_pace_seconds_per_km: number | null;
   hr_zone_seconds: Record<string, number> | null;
+  route_data: [number, number][] | null;
   created_at: string;
   exercises?: Exercise[];
 }

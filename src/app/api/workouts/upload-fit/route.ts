@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { session, distanceKm, movingTimeMinutes, paceSecondsPerKm, hrZoneSeconds } = parsed;
+    const { session, distanceKm, movingTimeMinutes, paceSecondsPerKm, hrZoneSeconds, route } = parsed;
 
     const dateOnly = session.startTime.split("T")[0] ?? new Date().toISOString().split("T")[0];
 
@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
         max_heart_rate: session.maxHeartRate,
         avg_pace_seconds_per_km: paceSecondsPerKm,
         hr_zone_seconds: hrZoneSeconds,
+        route_data: route.length > 2 ? route : null,
         total_calories: session.totalCalories,
         notes: [
           `Importado de archivo .fit`,

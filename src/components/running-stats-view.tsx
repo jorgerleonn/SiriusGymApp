@@ -9,6 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   LineChart,
+  Line,
   Area,
 } from "recharts";
 
@@ -211,9 +212,14 @@ export function RunningStatsView({ stats }: { stats: RunningStats }) {
                   <Area
                     type="monotone"
                     dataKey="value"
+                    stroke="none"
+                    fill="url(#paceGradientRs)"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
                     stroke="#1c69d4"
                     strokeWidth={2}
-                    fill="url(#paceGradientRs)"
                     dot={{ fill: "#1c69d4", strokeWidth: 0, r: 3 }}
                     activeDot={{ r: 5, fill: "#1c69d4" }}
                   />
