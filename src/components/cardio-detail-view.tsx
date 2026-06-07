@@ -1,6 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { calculateCalories, type UserProfile } from "@/lib/calories";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
 const RouteMap = dynamic(() => import("@/components/ui/route-map").then((m) => m.RouteMap), {
   ssr: false,
@@ -20,6 +30,7 @@ interface CardioData {
   max_heart_rate: number | null;
   total_calories: number | null;
   hr_zone_seconds: Record<string, number> | null;
+  heart_rate_data: { t: number; v: number }[] | null;
   route_data: [number, number][] | null;
   notes: string | null;
 }
@@ -61,7 +72,7 @@ const zoneDescriptions = [
   "> 90% FCmáx",
 ];
 
-export function CardioDetailView({ workout }: { workout: CardioData }) {
+export function CardioDetailView({ workout, profile }: { workout: CardioData; profile: UserProfile | null }) {
   const zones = workout.hr_zone_seconds ?? null;
 
   const zoneArray = zones
@@ -69,6 +80,13 @@ export function CardioDetailView({ workout }: { workout: CardioData }) {
     : null;
 
   const totalZoneSeconds = zoneArray ? zoneArray.reduce((a, b) => a + b, 0) : 0;
+
+  const estimatedCalories = calculateCalories(
+    workout.avg_heart_rate,
+    workout.duration_minutes,
+    workout.total_cardio_distance,
+    profile
+  );
 
   return (
     <div className="space-y-lg">
@@ -99,7 +117,7 @@ export function CardioDetailView({ workout }: { workout: CardioData }) {
         />
         <KpiCard
           label="CALORÍAS"
-          value={fmt(workout.total_calories)}
+          value={String(estimatedCalories)}
           sub="KCAL EST."
         />
         <KpiCard
@@ -136,21 +154,21 @@ export function CardioDetailView({ workout }: { workout: CardioData }) {
               const pct = totalZoneSeconds > 0 ? (seconds / totalZoneSeconds) * 100 : 0;
               const minutes = Math.round(seconds / 60);
               return (
-                <div key={i} className="grid grid-cols-[100px_1fr_60px_60px] gap-sm items-center">
+                <div key={i} className="grid grid-cols-1 sm:grid-cols-[100px_1fr_60px_60px] gap-xs sm:gap-sm items-center mb-xs sm:mb-0">
                   <span className="text-caption text-muted tracking-[1px] flex items-center gap-1.5">
                     <span className={`w-1.5 h-1.5 shrink-0 ${zoneColors[i]}`} />
                     {zoneLabels[i]}
                   </span>
-                  <div className="h-4 bg-canvas relative">
+                  <div className="h-4 bg-canvas relative w-full">
                     <div
                       className={`h-full ${zoneColors[i]} transition-all duration-500`}
                       style={{ width: `${Math.max(pct, 0.5)}%` }}
                     />
                   </div>
-                  <span className="text-caption text-primary text-right tabular-nums">
+                  <span className="text-caption text-primary text-right tabular-nums sm:text-right">
                     {minutes}m
                   </span>
-                  <span className="text-caption text-muted text-right tabular-nums">
+                  <span className="text-caption text-muted text-right tabular-nums sm:text-right">
                     {pct.toFixed(0)}%
                   </span>
                 </div>
@@ -163,6 +181,75 @@ export function CardioDetailView({ workout }: { workout: CardioData }) {
                 {desc}
               </span>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Heart Rate Chart */}
+      {workout.heart_rate_data && workout.heart_rate_data.length > 0 && (
+        <div className="bg-surface-card border border-hairline p-lg">
+          <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md">
+            FRECUENCIA CARDÍACA POR TIEMPO
+          </h3>
+          <div className="h-[240px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={workout.heart_rate_data}>
+                <defs>
+                  <linearGradient id="hrGradient" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stopColor="#1e3a8a" />
+                    <stop offset="60%" stopColor="#1e3a8a" />
+                    <stop offset="60%" stopColor="#3b82f6" />
+                    <stop offset="70%" stopColor="#3b82f6" />
+                    <stop offset="70%" stopColor="#60a5fa" />
+                    <stop offset="80%" stopColor="#60a5fa" />
+                    <stop offset="80%" stopColor="#ef4444" />
+                    <stop offset="90%" stopColor="#ef4444" />
+                    <stop offset="90%" stopColor="#f87171" />
+                    <stop offset="100%" stopColor="#f87171" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" vertical={false} />
+                <XAxis
+                  dataKey="t"
+                  type="number"
+                  domain={["auto", "auto"]}
+                  tickFormatter={(t) => {
+                    const min = Math.floor(t / 60);
+                    const sec = t % 60;
+                    return min > 0 ? `${min}:${sec.toString().padStart(2, "0")}` : `${sec}s`;
+                  }}
+                  stroke="#71717a"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  domain={[50, 190]}
+                  stroke="#71717a"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#18181b", border: "1px solid #3f3f46", borderRadius: "0" }}
+                  itemStyle={{ color: "#ffffff" }}
+                  labelFormatter={(t) => {
+                    const min = Math.floor(t / 60);
+                    const sec = t % 60;
+                    return `Tiempo: ${min > 0 ? `${min}:${sec.toString().padStart(2, "0")}` : `${sec}s`}`;
+                  }}
+                  formatter={(value: number) => [`${value} lpm`, "FC"]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="v"
+                  stroke="url(#hrGradient)"
+                  strokeWidth={1.5}
+                  dot={false}
+                  animationDuration={1000}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}

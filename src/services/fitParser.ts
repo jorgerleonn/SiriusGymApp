@@ -151,8 +151,8 @@ export async function parseFitFile(
   const totalDistance = getSessionField(session, "total_distance") ?? 0;
   const totalTimerTime = getSessionField(session, "total_timer_time") ?? 0;
   const totalMovingTime = getSessionField(session, "total_elapsed_time") ?? totalTimerTime;
-  const avgHeartRate = getSessionField(session, "avg_heart_rate");
-  const maxHeartRate = getSessionField(session, "max_heart_rate");
+  const rawAvgHeartRate = getSessionField(session, "avg_heart_rate") ?? getSessionField(session, "avgHeartRate");
+  const rawMaxHeartRate = getSessionField(session, "max_heart_rate") ?? getSessionField(session, "maxHeartRate");
   const avgSpeed = getSessionField(session, "avg_speed");
   const totalCalories = getSessionField(session, "total_calories");
 
@@ -164,7 +164,7 @@ export async function parseFitFile(
         r.timestamp instanceof Date
           ? r.timestamp.getTime() / 1000
           : safeNumber(r.timestamp as number) ?? 0,
-      heartRate: getSessionField(r as Record<string, unknown>, "heart_rate"),
+      heartRate: getSessionField(r as Record<string, unknown>, "heart_rate") ?? getSessionField(r as Record<string, unknown>, "heartRate"),
       distance: getSessionField(r as Record<string, unknown>, "distance"),
       speed: getSessionField(r as Record<string, unknown>, "speed"),
       altitude: getSessionField(r as Record<string, unknown>, "altitude"),
@@ -173,6 +173,13 @@ export async function parseFitFile(
       positionLong: safeNumber(rawLng as number),
     };
   });
+
+  const hrValues = mappedRecords
+    .map((r) => r.heartRate)
+    .filter((hr): hr is number => hr !== null && hr !== undefined);
+
+  const avgHeartRate = rawAvgHeartRate ?? (hrValues.length > 0 ? Math.round(hrValues.reduce((a, b) => a + b, 0) / hrValues.length) : null);
+  const maxHeartRate = rawMaxHeartRate ?? (hrValues.length > 0 ? Math.max(...hrValues) : null);
 
   const route: [number, number][] = mappedRecords
     .filter((r): r is FitRecord & { positionLat: number; positionLong: number } =>

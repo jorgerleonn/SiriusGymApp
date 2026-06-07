@@ -43,8 +43,10 @@ export async function POST(request: NextRequest) {
     }
 
     const { session, distanceKm, movingTimeMinutes, paceSecondsPerKm, hrZoneSeconds, route } = parsed;
+    const records = parsed.records;
 
     const dateOnly = session.startTime.split("T")[0] ?? new Date().toISOString().split("T")[0];
+
 
     const hrZoneSummary = [
       hrZoneSeconds.zone1,
@@ -55,6 +57,13 @@ export async function POST(request: NextRequest) {
     ];
 
     const dominantZone = hrZoneSummary.indexOf(Math.max(...hrZoneSummary)) + 1;
+
+    const heartRateData = records
+      .filter((r) => r.heartRate !== null)
+      .map((r) => ({
+        t: r.timestamp - records[0].timestamp,
+        v: r.heartRate,
+      }));
 
     const supabase = createSupabaseAdmin();
 
@@ -71,9 +80,11 @@ export async function POST(request: NextRequest) {
         max_heart_rate: session.maxHeartRate,
         avg_pace_seconds_per_km: paceSecondsPerKm,
         hr_zone_seconds: hrZoneSeconds,
+        heart_rate_data: heartRateData,
         route_data: route.length > 2 ? route : null,
         total_calories: session.totalCalories,
         notes: [
+
           `Importado de archivo .fit`,
           distanceKm > 0 ? `${distanceKm.toFixed(2)} km` : null,
           paceSecondsPerKm

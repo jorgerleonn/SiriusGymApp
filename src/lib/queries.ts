@@ -17,6 +17,20 @@ interface QueryExercise {
   sets?: QuerySet[];
 }
 
+export async function getUserProfile() {
+  const { userId } = await auth();
+  if (!userId) return null;
+
+  const supabase = createSupabaseAdmin();
+  const { data } = await supabase
+    .from("profiles")
+    .select("weight, age, gender")
+    .eq("id", userId)
+    .single();
+
+  return data;
+}
+
 export async function getWorkouts() {
   const { userId } = await auth();
   if (!userId) return [];

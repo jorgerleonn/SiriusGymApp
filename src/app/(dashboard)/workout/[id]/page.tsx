@@ -1,6 +1,6 @@
 "use server";
 
-import { getWorkout } from "@/lib/queries";
+import { getWorkout, getUserProfile } from "@/lib/queries";
 import { notFound } from "next/navigation";
 import WorkoutDetailClient from "./WorkoutDetailClient";
 
@@ -10,11 +10,14 @@ interface PageProps {
 
 export default async function WorkoutDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const workout = await getWorkout(id);
+  const [workout, profile] = await Promise.all([
+    getWorkout(id),
+    getUserProfile(),
+  ]);
 
   if (!workout) {
     notFound();
   }
 
-  return <WorkoutDetailClient workout={workout} />;
+  return <WorkoutDetailClient workout={workout} profile={profile} />;
 }

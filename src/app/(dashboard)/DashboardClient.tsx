@@ -150,7 +150,7 @@ export default function DashboardClient({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main Content */}
-      <main className="lg:pt-20 p-md lg:px-xl min-h-screen max-w-7xl mx-auto">
+      <main className="pt-16 lg:pt-20 p-md lg:px-xl min-h-screen max-w-7xl mx-auto">
         {children}
       </main>
     </div>

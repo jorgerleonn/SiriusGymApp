@@ -50,6 +50,7 @@ interface WorkoutData {
   max_heart_rate: number | null;
   avg_pace_seconds_per_km: number | null;
   hr_zone_seconds: Record<string, number> | null;
+  heart_rate_data: { t: number; v: number }[] | null;
   route_data: [number, number][] | null;
   created_at: string;
   exercises: ExerciseData[];
@@ -57,9 +58,40 @@ interface WorkoutData {
 
 interface Props {
   workout: WorkoutData;
+  profile: {
+    weight: number | null;
+    age: number | null;
+    gender: "male" | "female" | null;
+  } | null;
 }
 
-export default function WorkoutDetailClient({ workout: initial }: Props) {
+function mergeDuplicateExercises(exercises: ExerciseData[]): ExerciseData[] {
+  const seen = new Map<string, ExerciseData>();
+  const counter = { value: 0 };
+
+  for (const ex of exercises) {
+    const key = ex.name.trim().toLowerCase();
+    if (!key) {
+      seen.set(`__empty_${ex.id || counter.value++}`, ex);
+      continue;
+    }
+
+    if (seen.has(key)) {
+      const existing = seen.get(key)!;
+      existing.sets.push(...ex.sets);
+    } else {
+      seen.set(key, { ...ex, sets: [...ex.sets] });
+    }
+  }
+
+  const merged = Array.from(seen.values());
+  for (const ex of merged) {
+    ex.sets = ex.sets.map((s, i) => ({ ...s, order_index: i }));
+  }
+  return merged;
+}
+
+export default function WorkoutDetailClient({ workout: initial, profile }: Props) {
   const router = useRouter();
   const [workout, setWorkout] = useState<WorkoutData>(() => ({
     ...initial,
@@ -193,32 +225,6 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
     setWorkout({ ...workout, exercises: newExercises });
   };
 
-  function mergeDuplicateExercises(exercises: ExerciseData[]): ExerciseData[] {
-    const seen = new Map<string, ExerciseData>();
-    const counter = { value: 0 };
-
-    for (const ex of exercises) {
-      const key = ex.name.trim().toLowerCase();
-      if (!key) {
-        seen.set(`__empty_${ex.id || counter.value++}`, ex);
-        continue;
-      }
-
-      if (seen.has(key)) {
-        const existing = seen.get(key)!;
-        existing.sets.push(...ex.sets);
-      } else {
-        seen.set(key, { ...ex, sets: [...ex.sets] });
-      }
-    }
-
-    const merged = Array.from(seen.values());
-    for (const ex of merged) {
-      ex.sets = ex.sets.map((s, i) => ({ ...s, order_index: i }));
-    }
-    return merged;
-  }
-
   const handleExerciseNameChange = (exIndex: number, newName: string) => {
     if (!workout) return;
     const newExercises = workout.exercises.map((ex, i) =>
@@ -336,7 +342,7 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
 
       {/* Cardio FIT-imported view */}
       {workout.type === "cardio" && workout.exercises.length === 0 && (
-        <CardioDetailView workout={workout} />
+        <CardioDetailView workout={workout} profile={profile} />
       )}
 
       {/* Exercises (strength / hybrid / manual cardio) */}
@@ -396,13 +402,15 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
                   </div>
                 )}
 
-                {/* Sets */}
-                <div className="space-y-xs">
-                  {isEditing ? (
-                    <>
-                      <div className={`hidden sm:grid text-caption text-muted px-xs mb-xs tracking-[1px]`}
-                        style={{ gridTemplateColumns: isCardio ? "2rem 1fr 1fr 1fr 1fr 1.5rem" : "2rem 1fr 1fr 1fr 1fr 1.5rem" }}>
-                        <span>#</span>
+                 {/* Sets */}
+                 <div className="space-y-xs overflow-x-auto pb-xs">
+                   {isEditing ? (
+                     <>
+
+                       <div className={`hidden sm:grid text-caption text-muted px-xs mb-xs tracking-[1px] grid-cols-[1.5rem_repeat(4,1fr)_1.5rem]`}
+                         style={{ gridTemplateColumns: isCardio ? "1.5rem repeat(4, 1fr) 1.5rem" : "1.5rem repeat(4, 1fr) 1.5rem" }}>
+                         <span>#</span>
+
                         {isCardio ? (
                           <>
                             <span>DISTANCIA (M)</span>
@@ -423,7 +431,7 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
                       {exercise.sets.map((set, setIndex) => (
                         <div key={set.id || setIndex}
                           className="grid gap-xs items-center"
-                          style={{ gridTemplateColumns: "1.5rem 1fr 1fr 1fr 1fr 1.5rem" }}>
+                          style={{ gridTemplateColumns: "1.5rem repeat(4, 1fr) 1.5rem" }}>
                           <span className="text-caption text-muted">#{setIndex + 1}</span>
                           {isCardio ? (
                             <>
@@ -466,12 +474,13 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
                         + AÑADIR SERIE
                       </button>
                     </>
-                  ) : (
-                    /* View mode */
-                    <>
-                      <div className={`hidden sm:grid text-caption text-muted px-xs mb-xs tracking-[1px]`}
-                        style={{ gridTemplateColumns: isCardio ? "2rem 1fr 1fr 1fr 1fr" : "2rem 1fr 1fr 1fr 1fr" }}>
-                        <span>#</span>
+                   ) : (
+                     /* View mode */
+                     <>
+                       <div className={`hidden sm:grid text-caption text-muted px-xs mb-xs tracking-[1px]`}
+                         style={{ gridTemplateColumns: "1.5rem repeat(4, 1fr)" }}>
+                         <span>#</span>
+
                         {isCardio ? (
                           <>
                             <span>DISTANCIA</span>
@@ -488,11 +497,12 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
                           </>
                         )}
                       </div>
-                      {exercise.sets.map((set, setIndex) => (
-                        <div key={set.id || setIndex}
-                          className="grid gap-xs items-center py-xxs"
-                          style={{ gridTemplateColumns: "1.5rem 1fr 1fr 1fr 1fr" }}>
-                          <span className="text-caption text-muted">#{setIndex + 1}</span>
+                       {exercise.sets.map((set, setIndex) => (
+                         <div key={set.id || setIndex}
+                           className="grid gap-xs items-center py-xxs min-w-[400px] sm:min-w-0"
+                           style={{ gridTemplateColumns: "1.5rem repeat(4, 1fr)" }}>
+                           <span className="text-caption text-muted">#{setIndex + 1}</span>
+
                           {isCardio ? (
                             <>
                               <span className="text-body-sm text-primary text-center">
@@ -529,11 +539,12 @@ export default function WorkoutDetailClient({ workout: initial }: Props) {
             );
           })}
 
-          {/* Add Exercise Buttons (editing only) */}
-          {isEditing && (
-            <div className="flex gap-px bg-hairline">
-              <button
-                onClick={() => addExercise("strength")}
+           {/* Add Exercise Buttons (editing only) */}
+           {isEditing && (
+             <div className="grid grid-cols-1 sm:flex gap-px bg-hairline">
+               <button
+                 onClick={() => addExercise("strength")}
+
                 className="flex-1 py-md border border-hairline bg-surface-card text-muted hover:text-primary hover:bg-surface-elevated transition-colors text-label-uppercase tracking-[1.5px] flex items-center justify-center gap-sm"
               >
                 <Dumbbell className="w-4 h-4" />
