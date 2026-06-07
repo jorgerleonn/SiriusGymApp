@@ -130,7 +130,7 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
     return acc + (ex.sets?.reduce((v: number, s) => v + (Number(s.weight) * (s.reps || 0)), 0) || 0);
   }, 0);
 
-  const totalCardioDistance = (cardioExercises as QueryExercise[]).reduce((acc: number, ex) => {
+  let totalCardioDistance = (cardioExercises as QueryExercise[]).reduce((acc: number, ex) => {
     return acc + (ex.sets?.reduce((v: number, s) => v + (Number(s.distance_meters) || 0), 0) || 0);
   }, 0);
 
@@ -196,7 +196,7 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
 
     const sessionDistance = (cardioSession as QueryExercise[]).reduce((acc: number, ex) => {
       return acc + (ex.sets?.reduce((v: number, s) => v + (Number(s.distance_meters) || 0), 0) || 0);
-    }, 0);
+    }, 0) + (w.type === "cardio" ? (w as any).total_cardio_distance * 1000 : 0);
 
     if (sessionVolume > 0) {
       volumeOverTime.push({ date: w.date, value: Math.round(sessionVolume) });
@@ -313,6 +313,8 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
   for (const w of workouts as { id: string; date: string; type: string; total_cardio_distance?: number }[]) {
     if (processedCardioWorkouts.has(w.id)) continue;
     if (w.type !== "cardio" || !w.total_cardio_distance || w.total_cardio_distance <= 0) continue;
+
+    totalCardioDistance += w.total_cardio_distance * 1000;
 
     const distanceKm = w.total_cardio_distance;
     let distanceFactor: number;
@@ -477,6 +479,7 @@ export async function getAllExercises() {
 
   return [...new Set(exercises.map((e: { name: string }) => e.name))].sort();
 }
+
 
 export interface ExerciseStats {
   pr: number;

@@ -15,7 +15,11 @@ export interface Workout {
   max_heart_rate: number | null;
   avg_pace_seconds_per_km: number | null;
   hr_zone_seconds: Record<string, number> | null;
+  heart_rate_data: { t: number; v: number }[] | null;
   route_data: [number, number][] | null;
+  gear_id: string | null;
+  cardiac_drift: number | null;
+  efficiency_factor: number | null;
   created_at: string;
   exercises?: Exercise[];
 }
@@ -80,6 +84,13 @@ export interface MuscleGroupData {
   sessions: number;
   lastTrainedDays: number;
   effectiveOpacity: number;
+}
+
+export interface Gear {
+  id: string;
+  name: string;
+  totalDistance: number;
+  limit: number;
 }
 
 export interface DashboardStats {

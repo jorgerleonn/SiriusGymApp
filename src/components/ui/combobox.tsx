@@ -9,19 +9,22 @@ interface ComboboxProps {
   items: string[];
   placeholder?: string;
   className?: string;
+  readOnly?: boolean;
 }
 
-export function Combobox({ value, onChange, items, placeholder, className }: ComboboxProps) {
+export function Combobox({ value, onChange, items, placeholder, className, readOnly }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const search = value;
-  const filtered = items.filter((item) =>
-    item.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = readOnly 
+    ? items 
+    : items.filter((item) =>
+        item.toLowerCase().includes(search.toLowerCase())
+      );
   const showCreateOption =
-    search.trim().length > 0 &&
+    !readOnly && search.trim().length > 0 &&
     !items.some((item) => item.toLowerCase() === search.toLowerCase().trim());
 
   useEffect(() => {
@@ -87,13 +90,18 @@ export function Combobox({ value, onChange, items, placeholder, className }: Com
       <input
         type="text"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          if (!readOnly) {
+            onChange(e.target.value);
+          }
+        }}
         onFocus={() => {
           setOpen(true);
           setHighlightedIndex(-1);
         }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
+        readOnly={readOnly}
         className="flex-1 min-w-0 bg-canvas border border-hairline rounded-none px-sm py-xs text-primary placeholder:text-muted/50 focus:border-primary outline-none text-body-md tracking-[0] w-full"
       />
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseAdmin } from "@/lib/supabase";
 import { parseFitFile } from "@/services/fitParser";
+import { calculateSessionAerobics } from "@/lib/aerobic-calculator";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -65,6 +66,8 @@ export async function POST(request: NextRequest) {
         v: r.heartRate,
       }));
 
+    const aerobics = calculateSessionAerobics(records);
+
     const supabase = createSupabaseAdmin();
 
     const { data: workout, error: wErr } = await supabase
@@ -81,6 +84,8 @@ export async function POST(request: NextRequest) {
         avg_pace_seconds_per_km: paceSecondsPerKm,
         hr_zone_seconds: hrZoneSeconds,
         heart_rate_data: heartRateData,
+        cardiac_drift: aerobics.drift,
+        efficiency_factor: aerobics.ef,
         route_data: route.length > 2 ? route : null,
         total_calories: session.totalCalories,
         notes: [

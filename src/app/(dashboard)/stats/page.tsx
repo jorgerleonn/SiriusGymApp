@@ -18,6 +18,8 @@ import {
 import { Dumbbell, TrendingUp, BarChart3, Route } from "lucide-react";
 import { MStripe } from "@/components/ui/m-stripe";
 import { Combobox } from "@/components/ui/combobox";
+import { AdvancedRunningStats } from "@/components/advanced-running-stats";
+import { getGearStats } from "@/lib/gear";
 
 interface CardioSession {
   date: string;
@@ -110,6 +112,12 @@ export default function StatsPage() {
     { date: string; value: number }[]
   >([]);
   const [loading, setLoading] = useState(false);
+  const [gear, setGear] = useState<any[]>([]);
+  const [advancedData, setAdvancedData] = useState({
+    drift: [] as { date: string; value: number }[],
+    ef: [] as { date: string; value: number }[],
+    cadence: [] as { date: string; value: number }[],
+  });
 
   // Strength
   const [selectedExercise, setSelectedExercise] = useState("");
@@ -131,6 +139,8 @@ export default function StatsPage() {
         if (data.totalVolumeBySession)
           setTotalVolumeBySession(data.totalVolumeBySession as { date: string; value: number }[]);
       });
+
+    getGearStats().then(setGear);
   }, [isLoaded, user]);
 
   useEffect(() => {
@@ -139,10 +149,24 @@ export default function StatsPage() {
       .then((res) => res.json())
       .then((data) => {
         const stats = data.stats as {
-          sessions?: CardioSession[];
+          sessions?: any[];
         } | null;
         if (data.statsType === "running" && stats?.sessions) {
           setCardioSessions(stats.sessions);
+          
+          // Calculate historical trends for advanced stats
+          const sessions = stats.sessions;
+          const drift = sessions
+            .filter((s: any) => s.cardiac_drift !== null)
+            .map((s: any) => ({ date: s.date, value: s.cardiac_drift }));
+          const ef = sessions
+            .filter((s: any) => s.efficiency_factor !== null)
+            .map((s: any) => ({ date: s.date, value: s.efficiency_factor }));
+          const cadence = sessions
+            .filter((s: any) => s.avg_cadence !== null)
+            .map((s: any) => ({ date: s.date, value: s.avg_cadence }));
+            
+          setAdvancedData({ drift, ef, cadence });
         }
         setCardioLoaded(true);
       })
@@ -533,117 +557,118 @@ export default function StatsPage() {
         </div>
       )}
 
-      {/* ── CARDIO VIEW ──────────────────────────────────── */}
-      {activeTab === "cardio" && (
-        <div>
-          {/* Distance Filter */}
-          <div className="flex items-center gap-md mb-lg">
-            <span className="text-caption text-muted tracking-[1px]">DISTANCIA:</span>
-            <div className="flex gap-xs">
-              {DISTANCE_FILTERS.map((f) => (
-                <button
-                  key={f.key}
-                  onClick={() => setDistanceFilter(f.key)}
-                  className={`px-md py-xs text-caption tracking-[1px] border transition-colors ${
-                    distanceFilter === f.key
-                      ? "border-primary text-primary bg-surface-elevated"
-                      : "border-hairline text-muted hover:text-primary hover:border-primary"
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
+  {/* ── CARDIO VIEW ──────────────────────────────────── */}
+  {activeTab === "cardio" && (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+      <div className="lg:col-span-2 space-y-lg">
+        {/* Distance Filter */}
+        <div className="flex items-center gap-md mb-lg">
+          <span className="text-caption text-muted tracking-[1px]">DISTANCIA:</span>
+          <div className="flex gap-xs">
+            {DISTANCE_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setDistanceFilter(f.key)}
+                className={`px-md py-xs text-caption tracking-[1px] border transition-colors ${
+                  distanceFilter === f.key
+                    ? "border-primary text-primary bg-surface-elevated"
+                    : "border-hairline text-muted hover:text-primary hover:border-primary"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
+        </div>
 
-          {cardioData.totalSessions > 0 ? (
-            <>
-              {/* KPI Grid */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-hairline mb-xl">
-                <div className="bg-surface-card p-lg">
-                  <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
-                    DISTANCIA TOTAL
-                  </p>
-                  <p className="text-display-sm font-display text-primary tracking-[0]">
-                    {cardioData.totalDistance.toFixed(1)}{" "}
-                    <span className="text-body-sm text-muted">km</span>
-                  </p>
-                </div>
-                <div className="bg-surface-card p-lg">
-                  <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
-                    TIEMPO TOTAL
-                  </p>
-                  <p className="text-display-sm font-display text-primary tracking-[0]">
-                    {durationStr(cardioData.totalMinutes)}
-                  </p>
-                </div>
-                <div className="bg-surface-card p-lg">
-                  <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
-                    RITMO MEDIO
-                  </p>
-                  <p className="text-display-sm font-display text-primary tracking-[0]">
-                    {paceStr(cardioData.avgPaceSecondsPerKm)}{" "}
-                    <span className="text-body-sm text-muted">/km</span>
-                  </p>
-                </div>
-                <div className="bg-surface-card p-lg">
-                  <p className="text-caption text-muted mb-xxs tracking-[1.5px]">SESIONES</p>
-                  <p className="text-display-sm font-display text-primary tracking-[0]">
-                    {cardioData.totalSessions}
-                  </p>
-                </div>
+        {cardioData.totalSessions > 0 ? (
+          <>
+            {/* KPI Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-hairline mb-xl">
+              <div className="bg-surface-card p-lg">
+                <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
+                  DISTANCIA TOTAL
+                </p>
+                <p className="text-display-sm font-display text-primary tracking-[0]">
+                  {cardioData.totalDistance.toFixed(1)}{" "}
+                  <span className="text-body-sm text-muted">km</span>
+                </p>
               </div>
-
-              {/* Distance Per Session */}
-              <div className="bg-surface-card border border-hairline p-lg mb-lg">
-                <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md flex items-center gap-md">
-                    <span className="w-2 h-2 bg-m-red" />
-                    DISTANCIA POR SESIÓN
-                </h3>
-                <div className="h-48 sm:h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={cardioData.distanceOverTime} barCategoryGap={4}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="#3c3c3c"
-                        vertical={false}
-                      />
-                      <XAxis
-                        dataKey="date"
-                        tickFormatter={formatDate}
-                        stroke="#3c3c3c"
-                        fontSize={10}
-                        tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        stroke="#3c3c3c"
-                        fontSize={10}
-                        tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
-                        tickFormatter={(v) => `${v}`}
-                        width={40}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip content={<ChartTooltip suffix="km" />} />
-                      <Bar dataKey="value" fill="#e22718" radius={[0, 0, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+              <div className="bg-surface-card p-lg">
+                <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
+                  TIEMPO TOTAL
+                </p>
+                <p className="text-display-sm font-display text-primary tracking-[0]">
+                  {durationStr(cardioData.totalMinutes)}
+                </p>
               </div>
+              <div className="bg-surface-card p-lg">
+                <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
+                  RITMO MEDIO
+                </p>
+                <p className="text-display-sm font-display text-primary tracking-[0]">
+                  {paceStr(cardioData.avgPaceSecondsPerKm)}{" "}
+                  <span className="text-body-sm text-muted">/km</span>
+                </p>
+              </div>
+              <div className="bg-surface-card p-lg">
+                <p className="text-caption text-muted mb-xxs tracking-[1.5px]">SESIONES</p>
+                <p className="text-display-sm font-display text-primary tracking-[0]">
+                  {cardioData.totalSessions}
+                </p>
+              </div>
+            </div>
 
-              {/* Pace + HR Row */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-hairline mb-lg">
-                {cardioData.paceOverTime.length > 0 && (
-                  <div className="bg-surface-card p-lg">
-                    <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md flex items-center gap-md">
-                      <span className="w-2 h-2 bg-m-blue-light" />
-                      EVOLUCIÓN DEL RITMO
-                    </h3>
+            {/* Distance Per Session */}
+            <div className="bg-surface-card border border-hairline p-lg mb-lg">
+              <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md flex items-center gap-md">
+                <span className="w-2 h-2 bg-m-red" />
+                DISTANCIA POR SESIÓN
+              </h3>
+              <div className="h-48 sm:h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={cardioData.distanceOverTime} barCategoryGap={4}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="#3c3c3c"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={formatDate}
+                      stroke="#3c3c3c"
+                      fontSize={10}
+                      tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      stroke="#3c3c3c"
+                      fontSize={10}
+                      tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                      tickFormatter={(v) => `${v}`}
+                      width={40}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<ChartTooltip suffix="km" />} />
+                    <Bar dataKey="value" fill="#e22718" radius={[0, 0, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Pace + HR Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-hairline mb-lg">
+              {cardioData.paceOverTime.length > 0 && (
+                <div className="bg-surface-card p-lg">
+                  <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md flex items-center gap-md">
+                    <span className="w-2 h-2 bg-m-blue-light" />
+                    EVOLUCIÓN DEL RITMO
+                  </h3>
                     <div className="h-48 sm:h-56">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={cardioData.paceOverTime}>
+                        <AreaChart data={cardioData.paceOverTime}>
                           <defs>
                             <linearGradient id="paceGradient" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="5%" stopColor="#1c69d4" stopOpacity={0.25} />
@@ -699,29 +724,40 @@ export default function StatsPage() {
                             dot={{ fill: "#1c69d4", strokeWidth: 0, r: 3 }}
                             activeDot={{ r: 5, fill: "#1c69d4" }}
                           />
-                        </LineChart>
+                        </AreaChart>
                       </ResponsiveContainer>
                     </div>
-                  </div>
-                )}
 
-                {renderHrZonePanel()}
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-xxl border border-hairline">
-              <Route className="w-8 h-8 text-muted mx-auto mb-md" />
-              <p className="text-body-md text-muted">
-                {!cardioLoaded
-                  ? "CARGANDO..."
-                  : cardioSessions.length === 0
-                    ? "NO HAY DATOS DE CARDIO"
-                    : "NO HAY SESIONES EN ESTE RANGO"}
-              </p>
+                </div>
+              )}
+
+              {renderHrZonePanel()}
             </div>
-          )}
-        </div>
-      )}
+          </>
+        ) : (
+          <div className="text-center py-xxl border border-hairline">
+            <Route className="w-8 h-8 text-muted mx-auto mb-md" />
+            <p className="text-body-md text-muted">
+              {!cardioLoaded
+                ? "CARGANDO..."
+                : cardioSessions.length === 0
+                  ? "NO HAY DATOS DE CARDIO"
+                  : "NO HAY SESIONES EN ESTE RANGO"}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="lg:col-span-1">
+        <AdvancedRunningStats 
+          gear={gear} 
+          driftHistory={advancedData.drift} 
+          efHistory={advancedData.ef} 
+          cadenceHistory={advancedData.cadence} 
+        />
+      </div>
+    </div>
+  )}
     </div>
   );
 }

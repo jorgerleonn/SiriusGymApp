@@ -18,6 +18,8 @@ export interface FitRecord {
   speed: number | null;
   altitude: number | null;
   cadence: number | null;
+  strideLength: number | null;
+  groundContact: number | null;
   positionLat: number | null;
   positionLong: number | null;
 }
@@ -169,6 +171,8 @@ export async function parseFitFile(
       speed: getSessionField(r as Record<string, unknown>, "speed"),
       altitude: getSessionField(r as Record<string, unknown>, "altitude"),
       cadence: getSessionField(r as Record<string, unknown>, "cadence"),
+      strideLength: getSessionField(r as Record<string, unknown>, "stride_length"),
+      groundContact: getSessionField(r as Record<string, unknown>, "ground_contact"),
       positionLat: safeNumber(rawLat as number),
       positionLong: safeNumber(rawLng as number),
     };

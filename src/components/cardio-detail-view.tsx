@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { calculateCalories, type UserProfile } from "@/lib/calories";
+import { calculateAerobicAnalysis, type AerobicAnalysis } from "@/lib/aerobic-metrics";
 import {
   LineChart,
   Line,
@@ -33,6 +34,8 @@ interface CardioData {
   heart_rate_data: { t: number; v: number }[] | null;
   route_data: [number, number][] | null;
   notes: string | null;
+  cardiac_drift: number | null;
+  efficiency_factor: number | null;
 }
 
 function fmt(val: number | null | undefined, fallback = "-"): string {
@@ -185,7 +188,58 @@ export function CardioDetailView({ workout, profile }: { workout: CardioData; pr
         </div>
       )}
 
+      {/* Advanced Aerobic Analysis */}
+      <div className="bg-surface-card border border-hairline p-lg">
+        <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md">
+          ANÁLISIS AERÓBICO AVANZADO
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-md">
+          <div className="flex flex-col">
+            <span className="text-caption text-muted tracking-[1px] mb-xs">DESACOPLE AERÓBICO</span>
+            <span className={`text-display-sm font-display ${workout.cardiac_drift !== null && workout.cardiac_drift < 5 ? "text-[#27F5BE]" : "text-[#F57627]"}`}>
+              {workout.cardiac_drift !== null ? `${workout.cardiac_drift}%` : "-"}
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-caption text-muted tracking-[1px] mb-xs">RATIO EF</span>
+            <span className="text-display-sm font-display text-primary">
+              {workout.efficiency_factor !== null ? workout.efficiency_factor.toFixed(3) : "-"}
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-caption text-muted tracking-[1px] mb-xs">SISTEMA</span>
+            <span className="text-display-sm font-display text-muted">
+              {workout.cardiac_drift !== null && workout.cardiac_drift < 5 ? "ESTABLE" : "FATIGA"}
+            </span>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-md mt-lg pt-lg border-t border-hairline">
+          <div className="flex flex-col items-center">
+            <span className="text-caption text-muted tracking-[1px] mb-xs">CADENCIA</span>
+            <span className="text-display-sm font-display text-primary">
+              {workout.heart_rate_data ? calculateAerobicAnalysis(workout.heart_rate_data as any).avgCadence ?? "-" : "-"} 
+              <span className="text-caption text-muted"> spm</span>
+            </span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="text-caption text-muted tracking-[1px] mb-xs">ZANCADA</span>
+            <span className="text-display-sm font-display text-primary">
+              {workout.heart_rate_data ? calculateAerobicAnalysis(workout.heart_rate_data as any).avgStrideLength ?? "-" : "-"} 
+              <span className="text-caption text-muted"> m</span>
+            </span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="text-caption text-muted tracking-[1px] mb-xs">CONTACTO</span>
+            <span className="text-display-sm font-display text-primary">
+              {workout.heart_rate_data ? calculateAerobicAnalysis(workout.heart_rate_data as any).avgGroundContact ?? "-" : "-"} 
+              <span className="text-caption text-muted"> ms</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Heart Rate Chart */}
+
       {workout.heart_rate_data && workout.heart_rate_data.length > 0 && (
         <div className="bg-surface-card border border-hairline p-lg">
           <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md">

@@ -12,6 +12,7 @@ import {
   BarChart3,
   Menu,
   X,
+  Utensils,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MStripe } from "@/components/ui/m-stripe";
@@ -24,6 +25,7 @@ export default function DashboardClient({ children }: { children: React.ReactNod
     { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { href: "/history", icon: History, label: "Historial" },
     { href: "/stats", icon: BarChart3, label: "Estadísticas" },
+    { href: "/fueling-calculator", icon: Utensils, label: "Nutrición" },
     { href: "/workout/new", icon: Plus, label: "Nuevo" },
   ];
 
