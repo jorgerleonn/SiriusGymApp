@@ -52,6 +52,8 @@ interface WorkoutData {
   hr_zone_seconds: Record<string, number> | null;
   heart_rate_data: { t: number; v: number }[] | null;
   route_data: [number, number][] | null;
+  cardiac_drift: number | null;
+  efficiency_factor: number | null;
   created_at: string;
   exercises: ExerciseData[];
 }
