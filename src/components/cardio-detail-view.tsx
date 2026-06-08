@@ -292,7 +292,8 @@ export function CardioDetailView({ workout, profile }: { workout: CardioData; pr
                     const sec = t % 60;
                     return `Tiempo: ${min > 0 ? `${min}:${sec.toString().padStart(2, "0")}` : `${sec}s`}`;
                   }}
-                  formatter={(value: number) => [`${value} lpm`, "FC"]}
+                   formatter={(value: any) => [`${value ?? 0} lpm`, "FC"]}
+
                 />
                 <Line
                   type="monotone"
