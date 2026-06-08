@@ -9,6 +9,7 @@ import { HR_ZONES } from "@/lib/fueling-constants";
 import { DIYMix } from "@/lib/fueling-calculator";
 
 interface FuelingFormValues {
+  plannedDistance: number | null;
   durationHours: number;
   durationMinutes: number;
   hrZone: string;
@@ -23,24 +24,32 @@ interface FuelingFormValues {
   drinkProduct: string;
 }
 
-const GI_LEVELS = ["Beginner", "Intermediate", "Advanced", "Elite"];
 const RATIOS = ["1:1", "2:1", "1:0.8"];
 
-export function FuelingInputsPanel({ onUpdate, diyMix }: { onUpdate: (values: FuelingFormValues) => void, diyMix: DIYMix }) {
+export function FuelingInputsPanel({ 
+  onUpdate, 
+  diyMix, 
+  values 
+}: { 
+  onUpdate: (values: FuelingFormValues) => void, 
+  diyMix: DIYMix,
+  values: FuelingFormValues
+}) {
   const { register, setValue, watch } = useForm<FuelingFormValues>({
       defaultValues: {
+        plannedDistance: null,
         durationHours: 2,
         durationMinutes: 0,
         hrZone: "Zone 3: Tempo (70-80%)",
         bodyWeight: 70,
-      temperature: 20,
-      giTraining: "Intermediate",
-      customCarbTarget: "",
-      includeCaffeine: false,
-      useHomemadeDrink: false,
-      homemadeRatio: "2:1",
-      gelProduct: "Maurten Gel 100",
-      drinkProduct: "Maurten Drink Mix 160",
+       temperature: 20,
+       giTraining: "Intermediate",
+       customCarbTarget: "",
+       includeCaffeine: false,
+       useHomemadeDrink: false,
+       homemadeRatio: "2:1",
+       gelProduct: "Maurten Gel 100",
+       drinkProduct: "Maurten Drink Mix 160",
     },
   });
 
@@ -48,9 +57,21 @@ export function FuelingInputsPanel({ onUpdate, diyMix }: { onUpdate: (values: Fu
   const homemadeRatio = watch("homemadeRatio");
 
   React.useEffect(() => {
-    const subscription = watch((value) => onUpdate(value as FuelingFormValues));
-    return () => subscription.unsubscribe();
-  }, [watch, onUpdate]);
+    setValue("plannedDistance", values.plannedDistance);
+    setValue("durationHours", values.durationHours);
+    setValue("durationMinutes", values.durationMinutes);
+  }, [values.plannedDistance, values.durationHours, values.durationMinutes, setValue]);
+
+  const handleFieldChange = <K extends keyof FuelingFormValues>(
+    field: K, 
+    value: FuelingFormValues[K]
+  ) => {
+    setValue(field, value);
+    onUpdate({
+      ...watch(),
+      [field]: value
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -62,11 +83,29 @@ export function FuelingInputsPanel({ onUpdate, diyMix }: { onUpdate: (values: Fu
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
+            <label className="text-xs text-muted uppercase font-semibold tracking-wider">Planned Distance</label>
+            <div className="relative">
+              <input 
+                {...register("plannedDistance", { 
+                  valueAsNumber: true,
+                  onChange: (e) => handleFieldChange("plannedDistance", e.target.valueAsNumber)
+                })} 
+                type="number" 
+                placeholder="Optional"
+                className="w-full bg-canvas border border-hairline rounded-md px-3 py-2 text-primary focus:border-turquoise outline-none transition-colors"
+              />
+              <span className="absolute right-3 top-2 text-xs text-muted">km</span>
+            </div>
+          </div>
+          <div className="space-y-2">
             <label className="text-xs text-muted uppercase font-semibold tracking-wider">Duration</label>
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <input 
-                  {...register("durationHours", { valueAsNumber: true })} 
+                  {...register("durationHours", { 
+                    valueAsNumber: true,
+                    onChange: (e) => handleFieldChange("durationHours", e.target.valueAsNumber)
+                  })} 
                   type="number" 
                   className="w-full bg-canvas border border-hairline rounded-md px-3 py-2 text-primary focus:border-turquoise outline-none transition-colors"
                 />
@@ -74,7 +113,10 @@ export function FuelingInputsPanel({ onUpdate, diyMix }: { onUpdate: (values: Fu
               </div>
               <div className="relative flex-1">
                 <input 
-                  {...register("durationMinutes", { valueAsNumber: true })} 
+                  {...register("durationMinutes", { 
+                    valueAsNumber: true,
+                    onChange: (e) => handleFieldChange("durationMinutes", e.target.valueAsNumber)
+                  })} 
                   type="number" 
                   className="w-full bg-canvas border border-hairline rounded-md px-3 py-2 text-primary focus:border-turquoise outline-none transition-colors"
                 />
@@ -82,14 +124,28 @@ export function FuelingInputsPanel({ onUpdate, diyMix }: { onUpdate: (values: Fu
               </div>
             </div>
           </div>
+        </div>
 
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-xs text-muted uppercase font-semibold tracking-wider">Avg HR Zone</label>
             <Combobox 
               value={watch("hrZone")} 
-              onChange={(v) => setValue("hrZone", v)} 
+              onChange={(v) => handleFieldChange("hrZone", v)} 
               items={HR_ZONES.map(z => z.label)} 
               readOnly
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs text-muted uppercase font-semibold tracking-wider flex items-center gap-1">
+              <Weight className="w-3 h-3" /> Body Weight (kg)
+            </label>
+            <input 
+              {...register("bodyWeight", {
+                onChange: (e) => handleFieldChange("bodyWeight", e.target.valueAsNumber)
+              })} 
+              type="number" 
+              className="w-full bg-canvas border border-hairline rounded-md px-3 py-2 text-primary focus:border-turquoise outline-none transition-colors"
             />
           </div>
         </div>
@@ -97,50 +153,31 @@ export function FuelingInputsPanel({ onUpdate, diyMix }: { onUpdate: (values: Fu
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-xs text-muted uppercase font-semibold tracking-wider flex items-center gap-1">
-              <Weight className="w-3 h-3" /> Body Weight (kg)
-            </label>
-            <input 
-              {...register("bodyWeight")} 
-              type="number" 
-              className="w-full bg-canvas border border-hairline rounded-md px-3 py-2 text-primary focus:border-turquoise outline-none transition-colors"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs text-muted uppercase font-semibold tracking-wider flex items-center gap-1">
               <Thermometer className="w-3 h-3" /> Temp (°C): {watch("temperature")}°
             </label>
             <input 
-              {...register("temperature")} 
+              {...register("temperature", {
+                onChange: (e) => handleFieldChange("temperature", e.target.valueAsNumber)
+              })} 
               type="range" 
               min="0" 
               max="40" 
               className="w-full accent-turquoise"
             />
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-xs text-muted uppercase font-semibold tracking-wider">GI Training</label>
-            <Combobox 
-              value={watch("giTraining")} 
-              onChange={(v) => setValue("giTraining", v)} 
-              items={GI_LEVELS} 
-              readOnly
-            />
-          </div>
-
           <div className="space-y-2">
             <label className="text-xs text-muted uppercase font-semibold tracking-wider">Custom Carb Target (g/h)</label>
             <input 
-              {...register("customCarbTarget")} 
+              {...register("customCarbTarget", {
+                onChange: (e) => handleFieldChange("customCarbTarget", e.target.value)
+              })} 
               type="number" 
               placeholder="Optional"
               className="w-full bg-canvas border border-hairline rounded-md px-3 py-2 text-primary focus:border-turquoise outline-none transition-colors"
             />
           </div>
         </div>
+
       </Card>
 
       <Card className="p-6 space-y-6 bg-surface-card border-hairline">

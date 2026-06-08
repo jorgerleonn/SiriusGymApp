@@ -196,7 +196,7 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
 
     const sessionDistance = (cardioSession as QueryExercise[]).reduce((acc: number, ex) => {
       return acc + (ex.sets?.reduce((v: number, s) => v + (Number(s.distance_meters) || 0), 0) || 0);
-    }, 0) + (w.type === "cardio" ? (w as any).total_cardio_distance * 1000 : 0);
+    }, 0) + (w.type === "cardio" ? (w as { total_cardio_distance: number }).total_cardio_distance * 1000 : 0);
 
     if (sessionVolume > 0) {
       volumeOverTime.push({ date: w.date, value: Math.round(sessionVolume) });

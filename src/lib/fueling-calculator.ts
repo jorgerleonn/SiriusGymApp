@@ -26,7 +26,6 @@ export function calculateHourlyTargets(
   weight: number,
   temp: number,
   hrZoneMultiplier: number,
-  giTrainingLevel: string,
   customCarbTarget: string | number,
   durationMinutes: number
 ): FuelingTargets {
@@ -35,31 +34,21 @@ export function calculateHourlyTargets(
   if (temp > 20) {
     targetFluids += (temp - 20) * 15;
   }
-
+  
   // 2. Carbs Calculation (g/hr)
   let targetCarbs = 0;
-
+  
   if (durationMinutes > 60) {
     targetCarbs = 60 * hrZoneMultiplier;
-    
-    const giCaps: Record<string, number> = {
-      "Beginner": 60,
-      "Intermediate": 90,
-      "Advanced": 120,
-      "Elite": 120,
-    };
-
-    const cap = giCaps[giTrainingLevel] || 60;
-    targetCarbs = Math.min(targetCarbs, cap);
   }
-
+  
   if (customCarbTarget && customCarbTarget !== "") {
     targetCarbs = Number(customCarbTarget);
   }
-
+  
   // 3. Sodium Calculation (mg/hr)
   const targetSodium = (targetFluids / 1000) * 800;
-
+  
   return {
     targetCarbs: Math.round(targetCarbs),
     targetFluids: Math.round(targetFluids),
