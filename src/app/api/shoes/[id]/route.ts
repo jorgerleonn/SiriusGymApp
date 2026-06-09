@@ -4,16 +4,17 @@ import { createSupabaseAdmin } from "@/lib/supabase";
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   const body = await request.json();
   const { name, brand, color } = body;
+
 
   const supabase = createSupabaseAdmin();
 
@@ -34,14 +35,14 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   const supabase = createSupabaseAdmin();
 
   const { error } = await supabase
