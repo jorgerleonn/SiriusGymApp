@@ -31,7 +31,7 @@ export interface FitParseResult {
   paceSecondsPerKm: number | null;
   distanceKm: number;
   movingTimeMinutes: number;
-  route: [number, number][];
+  route: [number, number, number][];
 }
 
 function safeNumber(val: unknown): number | null {
@@ -185,11 +185,15 @@ export async function parseFitFile(
   const avgHeartRate = rawAvgHeartRate ?? (hrValues.length > 0 ? Math.round(hrValues.reduce((a, b) => a + b, 0) / hrValues.length) : null);
   const maxHeartRate = rawMaxHeartRate ?? (hrValues.length > 0 ? Math.max(...hrValues) : null);
 
-  const route: [number, number][] = mappedRecords
+  const route: [number, number, number][] = mappedRecords
     .filter((r): r is FitRecord & { positionLat: number; positionLong: number } =>
       r.positionLat !== null && r.positionLong !== null
     )
-    .map((r) => [r.positionLat, r.positionLong]);
+    .map((r) => {
+      const speed = r.speed ?? 0;
+      const pace = speed > 0 ? 1000 / speed : 0;
+      return [r.positionLat, r.positionLong, pace];
+    });
 
   const pace = calculatePace(totalMovingTime, totalDistance);
   const hrZoneSeconds = calculateHRZoneSeconds(mappedRecords, maxHeartRate, userAge);

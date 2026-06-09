@@ -51,11 +51,12 @@ interface WorkoutData {
   avg_pace_seconds_per_km: number | null;
   hr_zone_seconds: Record<string, number> | null;
   heart_rate_data: { t: number; v: number }[] | null;
-  route_data: [number, number][] | null;
+  route_data: [number, number, number][] | null;
   cardiac_drift: number | null;
   efficiency_factor: number | null;
   created_at: string;
   exercises: ExerciseData[];
+  shoe_id?: string | null;
 }
 
 interface Props {
@@ -102,6 +103,7 @@ export default function WorkoutDetailClient({ workout: initial, profile }: Props
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [existingExercises, setExistingExercises] = useState<string[]>([]);
+  const [shoes, setShoes] = useState<{ id: string; name: string }[]>([]);
   const idCounter = useRef(0);
 
   useEffect(() => {
@@ -111,7 +113,60 @@ export default function WorkoutDetailClient({ workout: initial, profile }: Props
         if (data.exercises) setExistingExercises(data.exercises as string[]);
       })
       .catch(() => {});
+
+    fetch("/api/shoes")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setShoes(data);
+      })
+      .catch(() => {});
   }, []);
+
+  const handleShoeChange = async (shoeId: string) => {
+    // Optimistic update
+    setWorkout(prev => ({ ...prev, shoe_id: shoeId }));
+
+    try {
+      const res = await fetch(`/api/workouts/${workout.id}/shoe`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shoeId }),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to update shoe");
+      }
+    } catch (err) {
+      console.error("Error updating shoe:", err);
+      // Rollback if failed (this is a bit tricky since we don't have the old shoeId here easily without a ref or previous state)
+      // For now, we'll just log it.
+    }
+  };
+
+  const handleShoeSelect = async (name: string) => {
+    let shoe = shoes.find(s => s.name === name);
+    
+    if (!shoe) {
+      try {
+        const res = await fetch("/api/shoes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        if (res.ok) {
+          shoe = await res.json();
+          setShoes(prev => [...prev, shoe]);
+        }
+      } catch (err) {
+        console.error("Error creating shoe:", err);
+      }
+    }
+
+    if (shoe) {
+      await handleShoeChange(shoe.id);
+    }
+  };
+
+
 
   const handleSave = async () => {
     if (!workout) return;
@@ -276,40 +331,53 @@ export default function WorkoutDetailClient({ workout: initial, profile }: Props
           <h1 className="text-display-md font-display text-primary tracking-[0]">{workout.name}</h1>
         )}
 
-        <div className="flex items-center gap-md mt-sm">
-          {isEditing ? (
-            <input
-              type="text"
-              value={workout.date.split("T")[0].split("-").reverse().join("/")}
-              onChange={(e) => {
-                const parts = e.target.value.split("/");
-                if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 4) {
-                  setWorkout({ ...workout, date: `${parts[2]}-${parts[1]}-${parts[0]}` });
-                } else {
-                  setWorkout({ ...workout, date: e.target.value });
-                }
-              }}
-              placeholder="DD/MM/AAAA"
-              className="bg-canvas border border-hairline rounded-none px-sm py-xs text-caption text-primary focus:border-primary outline-none w-[140px]"
-            />
-          ) : (
-            <span className="text-body-sm text-muted tracking-[0]">
-              {new Date(workout.date).toLocaleDateString("es-ES", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </span>
-          )}
-          <span className={`text-caption tracking-[1px] px-xs py-[2px] border ${
-            workout.type === "strength" ? "text-m-blue-light border-m-blue-light/30" :
-            workout.type === "cardio" ? "text-m-red border-m-red/30" :
-            "text-primary border-primary/30"
-          }`}>
-            {workout.type === "strength" ? "FUERZA" : workout.type === "cardio" ? "CARDIO" : "HÍBRIDO"}
-          </span>
-        </div>
+         <div className="flex items-center gap-md mt-sm">
+           {isEditing ? (
+             <input
+               type="text"
+               value={workout.date.split("T")[0].split("-").reverse().join("/")}
+               onChange={(e) => {
+                 const parts = e.target.value.split("/");
+                 if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 4) {
+                   setWorkout({ ...workout, date: `${parts[2]}-${parts[1]}-${parts[0]}` });
+                 } else {
+                   setWorkout({ ...workout, date: e.target.value });
+                 }
+               }}
+               placeholder="DD/MM/AAAA"
+               className="bg-canvas border border-hairline rounded-none px-sm py-xs text-caption text-primary focus:border-primary outline-none w-[140px]"
+             />
+           ) : (
+             <span className="text-body-sm text-muted tracking-[0]">
+               {new Date(workout.date).toLocaleDateString("es-ES", {
+                 weekday: "long",
+                 year: "numeric",
+                 month: "long",
+                 day: "numeric",
+               })}
+             </span>
+           )}
+           <span className={`text-caption tracking-[1px] px-xs py-[2px] border ${
+             workout.type === "strength" ? "text-m-blue-light border-m-blue-light/30" :
+             workout.type === "cardio" ? "text-m-red border-m-red/30" :
+             "text-primary border-primary/30"
+           }`}>
+             {workout.type === "strength" ? "FUERZA" : workout.type === "cardio" ? "CARDIO" : "HÍBRIDO"}
+           </span>
+           {workout.type === "cardio" || workout.type === "hybrid" ? (
+             <div className="flex items-center gap-xs ml-sm">
+               <span className="text-caption text-muted tracking-[1px]">ZAPAS:</span>
+               <Combobox
+                 value={shoes.find(s => s.id === workout.shoe_id)?.name || ""}
+                 onChange={handleShoeSelect}
+                 items={shoes.map(s => s.name)}
+                 placeholder="SELECCIONAR"
+                 className="w-[120px]"
+               />
+             </div>
+           ) : null}
+         </div>
+
       </div>
 
       {/* Actions */}

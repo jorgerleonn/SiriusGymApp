@@ -19,7 +19,13 @@ import { Dumbbell, TrendingUp, BarChart3, Route } from "lucide-react";
 import { MStripe } from "@/components/ui/m-stripe";
 import { Combobox } from "@/components/ui/combobox";
 import { AdvancedRunningStats } from "@/components/advanced-running-stats";
+import dynamic from "next/dynamic";
 import { getGearStats } from "@/lib/gear";
+
+const RunningHeatmap = dynamic(
+  () => import("@/components/fueling/RunningHeatmap").then((mod) => mod.RunningHeatmap),
+  { ssr: false }
+);
 
 interface CardioSession {
   date: string;
@@ -125,8 +131,10 @@ export default function StatsPage() {
 
   // Cardio
   const [cardioSessions, setCardioSessions] = useState<CardioSession[]>([]);
+  const [cardioTracks, setCardioTracks] = useState<[number, number, number][][][]>([]);
   const [distanceFilter, setDistanceFilter] = useState<DistanceFilter>("all");
   const [cardioLoaded, setCardioLoaded] = useState(false);
+  const [heatmapMode, setHeatmapMode] = useState<"distance" | "pace">("distance");
 
   // ── Effects ─────────────────────────────────────────────────
 
@@ -150,9 +158,11 @@ export default function StatsPage() {
       .then((data) => {
         const stats = data.stats as {
           sessions?: any[];
+          tracks?: [number, number, number][][];
         } | null;
         if (data.statsType === "running" && stats?.sessions) {
           setCardioSessions(stats.sessions);
+          if (stats.tracks) setCardioTracks(stats.tracks);
           
           // Calculate historical trends for advanced stats
           const sessions = stats.sessions;
@@ -559,203 +569,218 @@ export default function StatsPage() {
 
   {/* ── CARDIO VIEW ──────────────────────────────────── */}
   {activeTab === "cardio" && (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
-      <div className="lg:col-span-2 space-y-lg">
-        {/* Distance Filter */}
-        <div className="flex items-center gap-md mb-lg">
-          <span className="text-caption text-muted tracking-[1px]">DISTANCIA:</span>
-          <div className="flex gap-xs">
-            {DISTANCE_FILTERS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setDistanceFilter(f.key)}
-                className={`px-md py-xs text-caption tracking-[1px] border transition-colors ${
-                  distanceFilter === f.key
-                    ? "border-primary text-primary bg-surface-elevated"
-                    : "border-hairline text-muted hover:text-primary hover:border-primary"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+    <div className="space-y-lg">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+        <div className="lg:col-span-2 space-y-lg">
+          {/* Distance Filter */}
+          <div className="flex items-center gap-md mb-lg">
+            <span className="text-caption text-muted tracking-[1px]">DISTANCIA:</span>
+            <div className="flex gap-xs">
+              {DISTANCE_FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setDistanceFilter(f.key)}
+                  className={`px-md py-xs text-caption tracking-[1px] border transition-colors ${
+                    distanceFilter === f.key
+                      ? "border-primary text-primary bg-surface-elevated"
+                      : "border-hairline text-muted hover:text-primary hover:border-primary"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
+  
+          {cardioData.totalSessions > 0 ? (
+            <>
+              {/* KPI Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-hairline mb-xl">
+                <div className="bg-surface-card p-lg">
+                  <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
+                    DISTANCIA TOTAL
+                  </p>
+                  <p className="text-display-sm font-display text-primary tracking-[0]">
+                    {cardioData.totalDistance.toFixed(1)}{" "}
+                    <span className="text-body-sm text-muted">km</span>
+                  </p>
+                </div>
+                <div className="bg-surface-card p-lg">
+                  <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
+                    TIEMPO TOTAL
+                  </p>
+                  <p className="text-display-sm font-display text-primary tracking-[0]">
+                    {durationStr(cardioData.totalMinutes)}
+                  </p>
+                </div>
+                <div className="bg-surface-card p-lg">
+                  <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
+                    RITMO MEDIO
+                  </p>
+                  <p className="text-display-sm font-display text-primary tracking-[0]">
+                    {paceStr(cardioData.avgPaceSecondsPerKm)}{" "}
+                    <span className="text-body-sm text-muted">/km</span>
+                  </p>
+                </div>
+                <div className="bg-surface-card p-lg">
+                  <p className="text-caption text-muted mb-xxs tracking-[1.5px]">SESIONES</p>
+                  <p className="text-display-sm font-display text-primary tracking-[0]">
+                    {cardioData.totalSessions}
+                  </p>
+                </div>
+              </div>
+  
+              {/* Distance Per Session */}
+              <div className="bg-surface-card border border-hairline p-lg mb-lg">
+                <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md flex items-center gap-md">
+                  <span className="w-2 h-2 bg-m-red" />
+                  DISTANCIA POR SESIÓN
+                </h3>
+                <div className="h-48 sm:h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={cardioData.distanceOverTime} barCategoryGap={4}>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#3c3c3c"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="date"
+                        tickFormatter={formatDate}
+                        stroke="#3c3c3c"
+                        fontSize={10}
+                        tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        stroke="#3c3c3c"
+                        fontSize={10}
+                        tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                        tickFormatter={(v) => `${v}`}
+                        width={40}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip content={<ChartTooltip suffix="km" />} />
+                      <Bar dataKey="value" fill="#e22718" radius={[0, 0, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+  
+              {/* Pace + HR Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-hairline mb-lg">
+                {cardioData.paceOverTime.length > 0 && (
+                  <div className="bg-surface-card p-lg">
+                    <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md flex items-center gap-md">
+                      <span className="w-2 h-2 bg-m-blue-light" />
+                      EVOLUCIÓN DEL RITMO
+                    </h3>
+                      <div className="h-48 sm:h-56">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={cardioData.paceOverTime}>
+                            <defs>
+                              <linearGradient id="paceGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#1c69d4" stopOpacity={0.25} />
+                                <stop offset="95%" stopColor="#1c69d4" stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid
+                              strokeDasharray="3 3"
+                              stroke="#3c3c3c"
+                              vertical={false}
+                            />
+                            <XAxis
+                              dataKey="date"
+                              tickFormatter={formatDate}
+                              stroke="#3c3c3c"
+                              fontSize={10}
+                              tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                              axisLine={false}
+                              tickLine={false}
+                            />
+                            <YAxis
+                              stroke="#3c3c3c"
+                              fontSize={10}
+                              tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
+                              tickFormatter={(v) => paceStr(v)}
+                              width={45}
+                              domain={["dataMin - 30", "dataMax + 30"]}
+                              axisLine={false}
+                              tickLine={false}
+                              reversed
+                            />
+                            <Tooltip
+                              content={({ active, payload, label }) => {
+                                if (!active || !payload?.length) return null;
+                                return (
+                                  <div className="bg-surface-card border border-hairline p-md">
+                                    <p className="text-caption text-muted mb-xxs tracking-[1px]">
+                                      {label}
+                                    </p>
+                                    <p className="text-label-uppercase text-primary">
+                                      {paceStr(payload[0].value as number)} /km
+                                    </p>
+                                  </div>
+                                );
+                              }}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="value"
+                              stroke="#1c69d4"
+                              strokeWidth={2}
+                              fill="url(#paceGradient)"
+                              dot={{ fill: "#1c69d4", strokeWidth: 0, r: 3 }}
+                              activeDot={{ r: 5, fill: "#1c69d4" }}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+  
+                    </div>
+                  )}
+  
+                  {renderHrZonePanel()}
+                </div>
+            </>
+          ) : (
+            <div className="text-center py-xxl border border-hairline">
+              <Route className="w-8 h-8 text-muted mx-auto mb-md" />
+              <p className="text-body-md text-muted">
+                {!cardioLoaded
+                  ? "CARGANDO..."
+                  : cardioSessions.length === 0
+                    ? "NO HAY DATOS DE CARDIO"
+                    : "NO HAY SESIONES EN ESTE RANGO"}
+              </p>
+            </div>
+          )}
+        </div>
+        <div className="lg:col-span-1">
+          <AdvancedRunningStats 
+            gear={gear} 
+            driftHistory={advancedData.drift} 
+            efHistory={advancedData.ef} 
+            cadenceHistory={advancedData.cadence} 
+          />
+        </div>
+      </div>
+        <div className="space-y-md">
+          <div className="flex items-center justify-between">
+            <h3 className="text-label-uppercase text-primary tracking-[1.5px] flex items-center gap-md">
+              <Route className="w-4 h-4" />
+              MAPA DE CALOR DE CARRERAS
+            </h3>
+          </div>
+          <RunningHeatmap 
+            tracks={cardioTracks} 
+            mode={heatmapMode} 
+            onModeChange={setHeatmapMode} 
+          />
         </div>
 
-        {cardioData.totalSessions > 0 ? (
-          <>
-            {/* KPI Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-hairline mb-xl">
-              <div className="bg-surface-card p-lg">
-                <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
-                  DISTANCIA TOTAL
-                </p>
-                <p className="text-display-sm font-display text-primary tracking-[0]">
-                  {cardioData.totalDistance.toFixed(1)}{" "}
-                  <span className="text-body-sm text-muted">km</span>
-                </p>
-              </div>
-              <div className="bg-surface-card p-lg">
-                <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
-                  TIEMPO TOTAL
-                </p>
-                <p className="text-display-sm font-display text-primary tracking-[0]">
-                  {durationStr(cardioData.totalMinutes)}
-                </p>
-              </div>
-              <div className="bg-surface-card p-lg">
-                <p className="text-caption text-muted mb-xxs tracking-[1.5px]">
-                  RITMO MEDIO
-                </p>
-                <p className="text-display-sm font-display text-primary tracking-[0]">
-                  {paceStr(cardioData.avgPaceSecondsPerKm)}{" "}
-                  <span className="text-body-sm text-muted">/km</span>
-                </p>
-              </div>
-              <div className="bg-surface-card p-lg">
-                <p className="text-caption text-muted mb-xxs tracking-[1.5px]">SESIONES</p>
-                <p className="text-display-sm font-display text-primary tracking-[0]">
-                  {cardioData.totalSessions}
-                </p>
-              </div>
-            </div>
-
-            {/* Distance Per Session */}
-            <div className="bg-surface-card border border-hairline p-lg mb-lg">
-              <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md flex items-center gap-md">
-                <span className="w-2 h-2 bg-m-red" />
-                DISTANCIA POR SESIÓN
-              </h3>
-              <div className="h-48 sm:h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={cardioData.distanceOverTime} barCategoryGap={4}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="#3c3c3c"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={formatDate}
-                      stroke="#3c3c3c"
-                      fontSize={10}
-                      tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      stroke="#3c3c3c"
-                      fontSize={10}
-                      tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
-                      tickFormatter={(v) => `${v}`}
-                      width={40}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip content={<ChartTooltip suffix="km" />} />
-                    <Bar dataKey="value" fill="#e22718" radius={[0, 0, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Pace + HR Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-hairline mb-lg">
-              {cardioData.paceOverTime.length > 0 && (
-                <div className="bg-surface-card p-lg">
-                  <h3 className="text-label-uppercase text-primary tracking-[1.5px] mb-md flex items-center gap-md">
-                    <span className="w-2 h-2 bg-m-blue-light" />
-                    EVOLUCIÓN DEL RITMO
-                  </h3>
-                    <div className="h-48 sm:h-56">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={cardioData.paceOverTime}>
-                          <defs>
-                            <linearGradient id="paceGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#1c69d4" stopOpacity={0.25} />
-                              <stop offset="95%" stopColor="#1c69d4" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            stroke="#3c3c3c"
-                            vertical={false}
-                          />
-                          <XAxis
-                            dataKey="date"
-                            tickFormatter={formatDate}
-                            stroke="#3c3c3c"
-                            fontSize={10}
-                            tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
-                            axisLine={false}
-                            tickLine={false}
-                          />
-                          <YAxis
-                            stroke="#3c3c3c"
-                            fontSize={10}
-                            tick={{ fill: "#7e7e7e", letterSpacing: "1px" }}
-                            tickFormatter={(v) => paceStr(v)}
-                            width={45}
-                            domain={["dataMin - 30", "dataMax + 30"]}
-                            axisLine={false}
-                            tickLine={false}
-                            reversed
-                          />
-                          <Tooltip
-                            content={({ active, payload, label }) => {
-                              if (!active || !payload?.length) return null;
-                              return (
-                                <div className="bg-surface-card border border-hairline p-md">
-                                  <p className="text-caption text-muted mb-xxs tracking-[1px]">
-                                    {label}
-                                  </p>
-                                  <p className="text-label-uppercase text-primary">
-                                    {paceStr(payload[0].value as number)} /km
-                                  </p>
-                                </div>
-                              );
-                            }}
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="value"
-                            stroke="#1c69d4"
-                            strokeWidth={2}
-                            fill="url(#paceGradient)"
-                            dot={{ fill: "#1c69d4", strokeWidth: 0, r: 3 }}
-                            activeDot={{ r: 5, fill: "#1c69d4" }}
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                </div>
-              )}
-
-              {renderHrZonePanel()}
-            </div>
-          </>
-        ) : (
-          <div className="text-center py-xxl border border-hairline">
-            <Route className="w-8 h-8 text-muted mx-auto mb-md" />
-            <p className="text-body-md text-muted">
-              {!cardioLoaded
-                ? "CARGANDO..."
-                : cardioSessions.length === 0
-                  ? "NO HAY DATOS DE CARDIO"
-                  : "NO HAY SESIONES EN ESTE RANGO"}
-            </p>
-          </div>
-        )}
-      </div>
-
-      <div className="lg:col-span-1">
-        <AdvancedRunningStats 
-          gear={gear} 
-          driftHistory={advancedData.drift} 
-          efHistory={advancedData.ef} 
-          cadenceHistory={advancedData.cadence} 
-        />
-      </div>
     </div>
   )}
     </div>

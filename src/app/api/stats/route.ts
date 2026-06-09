@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
   const { data: workouts } = await supabase
     .from("workouts")
-    .select("id, date, type, total_cardio_distance, duration_minutes, avg_heart_rate, max_heart_rate, avg_pace_seconds_per_km, hr_zone_seconds, total_calories")
+    .select("id, date, type, total_cardio_distance, duration_minutes, avg_heart_rate, max_heart_rate, avg_pace_seconds_per_km, hr_zone_seconds, total_calories, route_data")
     .eq("user_id", userId)
     .order("date", { ascending: true });
 
@@ -204,6 +204,9 @@ export async function GET(request: Request) {
         hrOverTime,
         hrZoneSeconds: Object.keys(aggregatedZones).length > 0 ? aggregatedZones : null,
         sessions,
+        tracks: workouts
+          .filter(w => w.type === "cardio" && w.route_data)
+          .map(w => w.route_data),
       },
     });
   }

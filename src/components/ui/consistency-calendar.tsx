@@ -68,7 +68,7 @@ export function ConsistencyCalendar({ data }: ConsistencyCalendarProps) {
     return { months, maxCount: max };
   }, [data]);
 
-  const hasActivity = maxCount > 1;
+  const hasActivity = maxCount > 0;
 
   if (!hasActivity) {
     return (

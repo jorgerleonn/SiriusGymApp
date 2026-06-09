@@ -14,18 +14,22 @@ interface ComboboxProps {
 
 export function Combobox({ value, onChange, items, placeholder, className, readOnly }: ComboboxProps) {
   const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const search = value;
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
   const filtered = readOnly 
     ? items 
     : items.filter((item) =>
-        item.toLowerCase().includes(search.toLowerCase())
+        item.toLowerCase().includes(inputValue.toLowerCase())
       );
   const showCreateOption =
-    !readOnly && search.trim().length > 0 &&
-    !items.some((item) => item.toLowerCase() === search.toLowerCase().trim());
+    !readOnly && inputValue.trim().length > 0 &&
+    !items.some((item) => item.toLowerCase() === inputValue.toLowerCase().trim());
 
   useEffect(() => {
     if (!open) return;
@@ -69,7 +73,7 @@ export function Combobox({ value, onChange, items, placeholder, className, readO
           onChange(filtered[highlightedIndex]);
           setOpen(false);
         } else if (showCreateOption && highlightedIndex === filtered.length) {
-          onChange(search.trim());
+          onChange(inputValue.trim());
           setOpen(false);
         }
         break;
@@ -89,10 +93,10 @@ export function Combobox({ value, onChange, items, placeholder, className, readO
     <div ref={containerRef} className={cn("relative", className)}>
       <input
         type="text"
-        value={value}
+        value={inputValue}
         onChange={(e) => {
           if (!readOnly) {
-            onChange(e.target.value);
+            setInputValue(e.target.value);
           }
         }}
         onFocus={() => {
@@ -124,7 +128,7 @@ export function Combobox({ value, onChange, items, placeholder, className, readO
 
           {showCreateOption && (
             <button
-              onClick={() => handleSelect(search.trim())}
+              onClick={() => handleSelect(inputValue.trim())}
               className={cn(
                 "w-full text-left px-sm py-xs text-body-sm tracking-[0] transition-colors border-t border-hairline",
                 highlightedIndex === filtered.length
@@ -132,7 +136,7 @@ export function Combobox({ value, onChange, items, placeholder, className, readO
                   : "text-m-blue-light hover:bg-surface-elevated hover:text-primary"
               )}
             >
-              {"+ AÑADIR \u201C" + search.trim() + "\u201D"}
+              {"+ AÑADIR \u201C" + inputValue.trim() + "\u201D"}
             </button>
           )}
         </div>

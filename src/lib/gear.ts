@@ -1,9 +1,20 @@
 import { Gear } from "./types";
 
 export async function getGearStats(): Promise<Gear[]> {
-  // Mock data for gear tracking as database table is not yet created
-  return [
-    { id: "1", name: "Nike Pegasus 40", totalDistance: 450, limit: 700 },
-    { id: "2", name: "Asics Novablast 4", totalDistance: 820, limit: 700 },
-  ];
+  try {
+    const res = await fetch("/api/shoes");
+    if (!res.ok) throw new Error("Failed to fetch shoes");
+    
+    const shoes = await res.json();
+
+    return (Array.isArray(shoes) ? shoes : []).map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      totalDistance: s.total_distance,
+      limit: 700, // Default limit since it's not in DB yet
+    }));
+  } catch (error) {
+    console.error("Error fetching gear stats:", error);
+    return [];
+  }
 }

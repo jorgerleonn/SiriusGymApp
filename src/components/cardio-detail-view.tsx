@@ -32,7 +32,7 @@ interface CardioData {
   total_calories: number | null;
   hr_zone_seconds: Record<string, number> | null;
   heart_rate_data: { t: number; v: number }[] | null;
-  route_data: [number, number][] | null;
+  route_data: [number, number, number][] | null;
   notes: string | null;
   cardiac_drift: number | null;
   efficiency_factor: number | null;

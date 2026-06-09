@@ -16,7 +16,7 @@ export interface Workout {
   avg_pace_seconds_per_km: number | null;
   hr_zone_seconds: Record<string, number> | null;
   heart_rate_data: { t: number; v: number }[] | null;
-  route_data: [number, number][] | null;
+  route_data: [number, number, number][] | null;
   gear_id: string | null;
   cardiac_drift: number | null;
   efficiency_factor: number | null;
