@@ -15,6 +15,7 @@ interface FuelingFormValues {
   hrZone: string;
   bodyWeight: number;
   temperature: number;
+  giTraining: string;
   customCarbTarget: string;
   includeCaffeine: boolean;
   useHomemadeDrink: boolean;
@@ -42,6 +43,7 @@ export default function FuelingCalculatorPage() {
     hrZone: "Zone 3: Tempo (70-80%)",
     bodyWeight: Number(localStorage.getItem("sirius_bodyWeight")) || 75,
     temperature: 20,
+    giTraining: "Intermediate",
     customCarbTarget: "",
     includeCaffeine: false,
     useHomemadeDrink: false,
