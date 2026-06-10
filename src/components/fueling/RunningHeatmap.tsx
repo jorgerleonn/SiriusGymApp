@@ -14,7 +14,7 @@ function MapResizer({ isFullscreen, onResize }: { isFullscreen: boolean; onResiz
   const map = useMap();
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const debouncedResize = () => {
+  const debouncedResize = useCallback(() => {
     if (resizeTimeoutRef.current) {
       clearTimeout(resizeTimeoutRef.current);
     }
@@ -22,11 +22,11 @@ function MapResizer({ isFullscreen, onResize }: { isFullscreen: boolean; onResiz
       map.invalidateSize();
       onResize();
     }, 100);
-  };
+  }, [map, onResize]);
 
   useEffect(() => {
     debouncedResize();
-  }, [map, isFullscreen]);
+  }, [map, isFullscreen, debouncedResize]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -37,7 +37,7 @@ function MapResizer({ isFullscreen, onResize }: { isFullscreen: boolean; onResiz
       window.removeEventListener("resize", handleResize);
       if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
     };
-  }, [map]);
+  }, [map, debouncedResize]);
 
   return null;
 }

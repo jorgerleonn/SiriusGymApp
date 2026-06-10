@@ -35,7 +35,7 @@ export function FuelingInputsPanel({
   diyMix: DIYMix,
   values: FuelingFormValues
 }) {
-  const { register, setValue, watch } = useForm<FuelingFormValues>({
+  const { register, setValue, watch, getValues } = useForm<FuelingFormValues>({
       defaultValues: {
         plannedDistance: null,
         durationHours: 2,
@@ -68,7 +68,7 @@ export function FuelingInputsPanel({
   ) => {
     setValue(field, value);
     onUpdate({
-      ...watch(),
+      ...getValues(),
       [field]: value
     });
   };
@@ -189,20 +189,20 @@ export function FuelingInputsPanel({
         <div className="space-y-4">
           <div className="flex items-center justify-between p-3 bg-canvas rounded-lg border border-hairline">
             <span className="text-sm text-primary">Include Caffeine Strategy</span>
-            <button 
-              onClick={() => setValue("includeCaffeine", !watch("includeCaffeine"))}
-              className={`w-11 h-6 rounded-full transition-colors relative ${watch("includeCaffeine") ? "bg-turquoise" : "bg-muted"}`}
-            >
+           <button 
+             onClick={() => setValue("includeCaffeine", !getValues("includeCaffeine"))}
+             className={`w-11 h-6 rounded-full transition-colors relative ${watch("includeCaffeine") ? "bg-turquoise" : "bg-muted"}`}
+           >
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${watch("includeCaffeine") ? "left-6" : "left-1"}`} />
             </button>
           </div>
 
           <div className="flex items-center justify-between p-3 bg-canvas rounded-lg border border-hairline">
             <span className="text-sm text-primary">DIY Sports Drink</span>
-            <button 
-              onClick={() => setValue("useHomemadeDrink", !watch("useHomemadeDrink"))}
-              className={`w-11 h-6 rounded-full transition-colors relative ${useHomemadeDrink ? "bg-turquoise" : "bg-muted"}`}
-            >
+           <button 
+             onClick={() => setValue("useHomemadeDrink", !getValues("useHomemadeDrink"))}
+             className={`w-11 h-6 rounded-full transition-colors relative ${useHomemadeDrink ? "bg-turquoise" : "bg-muted"}`}
+           >
               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${useHomemadeDrink ? "left-6" : "left-1"}`} />
             </button>
           </div>

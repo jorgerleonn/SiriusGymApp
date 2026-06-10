@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { calculateCalories, type UserProfile } from "@/lib/calories";
-import { calculateAerobicAnalysis, type AerobicAnalysis } from "@/lib/aerobic-metrics";
+import { calculateAerobicAnalysis } from "@/lib/aerobic-metrics";
 import {
   LineChart,
   Line,
@@ -216,25 +216,25 @@ export function CardioDetailView({ workout, profile }: { workout: CardioData; pr
         <div className="grid grid-cols-3 gap-md mt-lg pt-lg border-t border-hairline">
           <div className="flex flex-col items-center">
             <span className="text-caption text-muted tracking-[1px] mb-xs">CADENCIA</span>
-            <span className="text-display-sm font-display text-primary">
-              {workout.heart_rate_data ? calculateAerobicAnalysis(workout.heart_rate_data as any).avgCadence ?? "-" : "-"} 
-              <span className="text-caption text-muted"> spm</span>
-            </span>
-          </div>
-          <div className="flex flex-col items-center">
-            <span className="text-caption text-muted tracking-[1px] mb-xs">ZANCADA</span>
-            <span className="text-display-sm font-display text-primary">
-              {workout.heart_rate_data ? calculateAerobicAnalysis(workout.heart_rate_data as any).avgStrideLength ?? "-" : "-"} 
-              <span className="text-caption text-muted"> m</span>
-            </span>
-          </div>
-          <div className="flex flex-col items-center">
-            <span className="text-caption text-muted tracking-[1px] mb-xs">CONTACTO</span>
-            <span className="text-display-sm font-display text-primary">
-              {workout.heart_rate_data ? calculateAerobicAnalysis(workout.heart_rate_data as any).avgGroundContact ?? "-" : "-"} 
-              <span className="text-caption text-muted"> ms</span>
-            </span>
-          </div>
+             <span className="text-display-sm font-display text-primary">
+               {workout.heart_rate_data ? calculateAerobicAnalysis(workout.heart_rate_data).avgCadence ?? "-" : "-"} 
+               <span className="text-caption text-muted"> spm</span>
+             </span>
+           </div>
+           <div className="flex flex-col items-center">
+             <span className="text-caption text-muted tracking-[1px] mb-xs">ZANCADA</span>
+             <span className="text-display-sm font-display text-primary">
+               {workout.heart_rate_data ? calculateAerobicAnalysis(workout.heart_rate_data).avgStrideLength ?? "-" : "-"} 
+               <span className="text-caption text-muted"> m</span>
+             </span>
+           </div>
+           <div className="flex flex-col items-center">
+             <span className="text-caption text-muted tracking-[1px] mb-xs">CONTACTO</span>
+             <span className="text-display-sm font-display text-primary">
+               {workout.heart_rate_data ? calculateAerobicAnalysis(workout.heart_rate_data).avgGroundContact ?? "-" : "-"} 
+               <span className="text-caption text-muted"> ms</span>
+             </span>
+           </div>
         </div>
       </div>
 
@@ -287,12 +287,13 @@ export function CardioDetailView({ workout, profile }: { workout: CardioData; pr
                 <Tooltip
                   contentStyle={{ backgroundColor: "#18181b", border: "1px solid #3f3f46", borderRadius: "0" }}
                   itemStyle={{ color: "#ffffff" }}
-                  labelFormatter={(t) => {
-                    const min = Math.floor(t / 60);
-                    const sec = t % 60;
-                    return `Tiempo: ${min > 0 ? `${min}:${sec.toString().padStart(2, "0")}` : `${sec}s`}`;
-                  }}
-                   formatter={(value: any) => [`${value ?? 0} lpm`, "FC"]}
+                   labelFormatter={(t) => {
+                     const min = Math.floor(t / 60);
+                     const sec = t % 60;
+                     return `Tiempo: ${min > 0 ? `${min}:${sec.toString().padStart(2, "0")}` : `${sec}s`}`;
+                   }}
+                    formatter={(value: number) => [`${value ?? 0} lpm`, "FC"]}
+
 
                 />
                 <Line

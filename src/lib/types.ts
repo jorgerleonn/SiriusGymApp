@@ -93,6 +93,14 @@ export interface Gear {
   limit: number;
 }
 
+export interface ShoeDB {
+  id: string;
+  name: string;
+  total_distance: number;
+  brand?: string;
+  color?: string;
+}
+
 export interface DashboardStats {
   totalWorkouts: number;
   thisWeek: number;

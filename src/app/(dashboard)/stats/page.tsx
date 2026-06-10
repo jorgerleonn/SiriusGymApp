@@ -19,6 +19,7 @@ import { Dumbbell, TrendingUp, BarChart3, Route } from "lucide-react";
 import { MStripe } from "@/components/ui/m-stripe";
 import { Combobox } from "@/components/ui/combobox";
 import { AdvancedRunningStats } from "@/components/advanced-running-stats";
+import { Gear } from "@/lib/types";
 import dynamic from "next/dynamic";
 import { getGearStats } from "@/lib/gear";
 
@@ -118,7 +119,7 @@ export default function StatsPage() {
     { date: string; value: number }[]
   >([]);
   const [loading, setLoading] = useState(false);
-  const [gear, setGear] = useState<any[]>([]);
+  const [gear, setGear] = useState<Gear[]>([]);
   const [advancedData, setAdvancedData] = useState({
     drift: [] as { date: string; value: number }[],
     ef: [] as { date: string; value: number }[],
@@ -157,7 +158,7 @@ export default function StatsPage() {
       .then((res) => res.json())
       .then((data) => {
         const stats = data.stats as {
-          sessions?: any[];
+          sessions?: CardioSession[];
           tracks?: [number, number, number][][];
         } | null;
         if (data.statsType === "running" && stats?.sessions) {
@@ -167,14 +168,14 @@ export default function StatsPage() {
           // Calculate historical trends for advanced stats
           const sessions = stats.sessions;
           const drift = sessions
-            .filter((s: any) => s.cardiac_drift !== null)
-            .map((s: any) => ({ date: s.date, value: s.cardiac_drift }));
+            .filter((s) => s.cardiac_drift !== null)
+            .map((s) => ({ date: s.date, value: s.cardiac_drift }));
           const ef = sessions
-            .filter((s: any) => s.efficiency_factor !== null)
-            .map((s: any) => ({ date: s.date, value: s.efficiency_factor }));
+            .filter((s) => s.efficiency_factor !== null)
+            .map((s) => ({ date: s.date, value: s.efficiency_factor }));
           const cadence = sessions
-            .filter((s: any) => s.avg_cadence !== null)
-            .map((s: any) => ({ date: s.date, value: s.avg_cadence }));
+            .filter((s) => s.avg_cadence !== null)
+            .map((s) => ({ date: s.date, value: s.avg_cadence }));
             
           setAdvancedData({ drift, ef, cadence });
         }
@@ -186,20 +187,27 @@ export default function StatsPage() {
   useEffect(() => {
     if (!selectedExercise || !user) return;
     const controller = new AbortController();
-    setLoading(true);
-    fetch(`/api/stats?exercise=${encodeURIComponent(selectedExercise)}`, {
-      signal: controller.signal,
-    })
-      .then((res) => res.json())
-      .then((data) => {
+    
+    const fetchStats = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/stats?exercise=${encodeURIComponent(selectedExercise)}`, {
+          signal: controller.signal,
+        });
+        const data = await res.json();
         if (data.statsType === "strength") {
           setStrengthStats((data.stats ?? null) as StrengthStats | null);
         } else {
           setStrengthStats(null);
         }
+      } catch (_) {
+        // Ignore abort errors
+      } finally {
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      }
+    };
+
+    fetchStats();
     return () => controller.abort();
   }, [selectedExercise, user]);
 
