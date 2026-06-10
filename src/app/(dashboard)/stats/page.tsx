@@ -200,7 +200,7 @@ export default function StatsPage() {
         } else {
           setStrengthStats(null);
         }
-      } catch (_) {
+      } catch {
         // Ignore abort errors
       } finally {
         setLoading(false);

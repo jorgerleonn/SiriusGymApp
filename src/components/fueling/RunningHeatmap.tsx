@@ -42,7 +42,7 @@ function MapResizer({ isFullscreen, onResize }: { isFullscreen: boolean; onResiz
   return null;
 }
 
-function HeatmapLayer({ tracks, isFullscreen, resizeCount, onHoverPace }: { tracks: [number, number, number][][]; isFullscreen: boolean; resizeCount: number; onHoverPace: (pace: string | null, x: number, y: number) => void }) {
+function HeatmapLayer({ tracks, onHoverPace }: { tracks: [number, number, number][][]; onHoverPace: (pace: string | null, x: number, y: number) => void }) {
   const map = useMap();
 
   const { heatData, grid } = useMemo(() => {
@@ -97,7 +97,6 @@ function HeatmapLayer({ tracks, isFullscreen, resizeCount, onHoverPace }: { trac
         gradient: { 0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1.0: 'red' },
       });
       try {
-        map.invalidateSize();
         currentHeatLayer.addTo(map);
       } catch (e) {
         console.error("Heatmap addTo failed:", e);
@@ -126,13 +125,13 @@ function HeatmapLayer({ tracks, isFullscreen, resizeCount, onHoverPace }: { trac
     };
 
     map.on("mousemove", handleMouseMove);
-
+ 
     return () => {
       map.off("zoomend", refreshLayer);
       map.off("mousemove", handleMouseMove);
       if (currentHeatLayer) map.removeLayer(currentHeatLayer);
     };
-  }, [map, heatData, grid, isFullscreen, resizeCount, onHoverPace]);
+  }, [map, heatData, grid, onHoverPace]);
 
   return null;
 }
