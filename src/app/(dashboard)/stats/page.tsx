@@ -132,7 +132,7 @@ export default function StatsPage() {
 
   // Cardio
   const [cardioSessions, setCardioSessions] = useState<CardioSession[]>([]);
-  const [cardioTracks, setCardioTracks] = useState<[number, number, number][][][]>([]);
+  const [cardioTracks, setCardioTracks] = useState<[number, number, number][][]>([]);
   const [distanceFilter, setDistanceFilter] = useState<DistanceFilter>("all");
   const [cardioLoaded, setCardioLoaded] = useState(false);
   const [heatmapMode, setHeatmapMode] = useState<"distance" | "pace">("distance");
