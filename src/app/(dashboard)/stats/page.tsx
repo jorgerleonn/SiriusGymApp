@@ -36,6 +36,9 @@ interface CardioSession {
   avg_heart_rate: number | null;
   total_calories: number | null;
   hr_zone_seconds: Record<string, number> | null;
+  cardiac_drift: number | null;
+  efficiency_factor: number | null;
+  avg_cadence: number | null;
 }
 
 interface StrengthStats {
