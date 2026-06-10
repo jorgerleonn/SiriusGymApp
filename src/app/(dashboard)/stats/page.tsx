@@ -170,15 +170,15 @@ export default function StatsPage() {
           
           // Calculate historical trends for advanced stats
           const sessions = stats.sessions;
-          const drift = sessions
-            .filter((s) => s.cardiac_drift !== null)
-            .map((s) => ({ date: s.date, value: s.cardiac_drift }));
-          const ef = sessions
-            .filter((s) => s.efficiency_factor !== null)
-            .map((s) => ({ date: s.date, value: s.efficiency_factor }));
-          const cadence = sessions
-            .filter((s) => s.avg_cadence !== null)
-            .map((s) => ({ date: s.date, value: s.avg_cadence }));
+           const drift: { date: string; value: number }[] = sessions
+             .filter((s) => s.cardiac_drift !== null)
+             .map((s) => ({ date: s.date, value: s.cardiac_drift as number }));
+           const ef: { date: string; value: number }[] = sessions
+             .filter((s) => s.efficiency_factor !== null)
+             .map((s) => ({ date: s.date, value: s.efficiency_factor as number }));
+           const cadence: { date: string; value: number }[] = sessions
+             .filter((s) => s.avg_cadence !== null)
+             .map((s) => ({ date: s.date, value: s.avg_cadence as number }));
             
           setAdvancedData({ drift, ef, cadence });
         }
