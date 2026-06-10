@@ -182,7 +182,7 @@ export default function ShoesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
         <ShoeForm 
           key={editingShoe?.id || 'new'}
-          initialData={editingShoe} 
+           initialData={editingShoe ?? undefined} 
           onSubmit={handleAddOrUpdateShoe} 
           onCancel={() => setEditingShoe(null)} 
           isEditing={!!editingShoe} 
