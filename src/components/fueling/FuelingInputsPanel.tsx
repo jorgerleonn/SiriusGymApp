@@ -66,7 +66,7 @@ export function FuelingInputsPanel({
     field: K, 
     value: FuelingFormValues[K]
   ) => {
-    setValue(field, value);
+    setValue(field, value as any);
     onUpdate({
       ...getValues(),
       [field]: value

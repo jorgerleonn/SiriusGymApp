@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { MStripe } from "@/components/ui/m-stripe";
 import { CardioDetailView } from "@/components/cardio-detail-view";
+import { FitRecord } from "@/services/fitParser";
 import type { WorkoutType, ExerciseType } from "@/lib/types";
 
 const MUSCLE_GROUPS = [
@@ -50,8 +51,8 @@ interface WorkoutData {
   max_heart_rate: number | null;
   avg_pace_seconds_per_km: number | null;
   hr_zone_seconds: Record<string, number> | null;
-  heart_rate_data: { t: number; v: number }[] | null;
-  route_data: [number, number, number][] | null;
+  heart_rate_data: FitRecord[] | null;
+  route_data: [number, number][] | null;
   cardiac_drift: number | null;
   efficiency_factor: number | null;
   created_at: string;
@@ -154,7 +155,7 @@ export default function WorkoutDetailClient({ workout: initial, profile }: Props
         });
         if (res.ok) {
           shoe = await res.json();
-          setShoes(prev => [...prev, shoe]);
+          setShoes(prev => [...prev, shoe as { id: string; name: string }]);
         }
       } catch (err) {
         console.error("Error creating shoe:", err);

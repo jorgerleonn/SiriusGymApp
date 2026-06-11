@@ -6,8 +6,10 @@ import L from "leaflet";
 import "leaflet.heat";
 import { Maximize2, Minimize2 } from "lucide-react";
 
-interface RunningHeatmapProps {
+export interface RunningHeatmapProps {
   tracks: [number, number, number][][];
+  mode?: "distance" | "pace";
+  onModeChange?: (mode: "distance" | "pace") => void;
 }
 
 function MapResizer({ isFullscreen, onResize }: { isFullscreen: boolean; onResize: () => void }) {
@@ -42,7 +44,7 @@ function MapResizer({ isFullscreen, onResize }: { isFullscreen: boolean; onResiz
   return null;
 }
 
-function HeatmapLayer({ tracks, onHoverPace }: { tracks: [number, number, number][][]; onHoverPace: (pace: string | null, x: number, y: number) => void }) {
+function HeatmapLayer({ tracks, onHoverPace, isFullscreen, resizeCount }: { tracks: [number, number, number][][]; onHoverPace: (pace: string | null, x: number, y: number) => void; isFullscreen: boolean; resizeCount: number }) {
   const map = useMap();
 
   const { heatData, grid } = useMemo(() => {
@@ -83,15 +85,17 @@ function HeatmapLayer({ tracks, onHoverPace }: { tracks: [number, number, number
       };
     };
 
-    let currentHeatLayer: L.HeatLayer | null = null;
+    let currentHeatLayer: any = null;
 
     const refreshLayer = () => {
       if (currentHeatLayer) map.removeLayer(currentHeatLayer);
       const container = map.getContainer();
       const size = map.getSize();
-      if (!container || container.offsetHeight === 0 || size.height === 0) return;
+       if (!container || container.offsetHeight === 0 || size.y === 0) return;
+
       const opts = getZoomOptions(map.getZoom());
-      currentHeatLayer = L.heatLayer(heatData, {
+       currentHeatLayer = (L as any).heatLayer(heatData, {
+
         ...opts,
         maxZoom: 17,
         gradient: { 0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1.0: 'red' },
@@ -137,7 +141,8 @@ function HeatmapLayer({ tracks, onHoverPace }: { tracks: [number, number, number
 }
 
 
-export function RunningHeatmap({ tracks }: RunningHeatmapProps) {
+export function RunningHeatmap(props: RunningHeatmapProps) {
+  const { tracks, mode, onModeChange } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [resizeCount, setResizeCount] = useState(0);
@@ -176,7 +181,7 @@ export function RunningHeatmap({ tracks }: RunningHeatmapProps) {
     );
   }
 
-  const center: [number, number] = [tracks[0][0][0], tracks[0][0][1]] || [0, 0];
+  const center: [number, number] = (tracks[0] && tracks[0][0]) ? [tracks[0][0][0], tracks[0][0][1]] : [0, 0];
 
   return (
     <div 

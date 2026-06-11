@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { calculateCalories, type UserProfile } from "@/lib/calories";
 import { calculateAerobicAnalysis } from "@/lib/aerobic-metrics";
+import { FitRecord } from "@/services/fitParser";
 import {
   LineChart,
   Line,
@@ -31,8 +32,8 @@ interface CardioData {
   max_heart_rate: number | null;
   total_calories: number | null;
   hr_zone_seconds: Record<string, number> | null;
-  heart_rate_data: { t: number; v: number }[] | null;
-  route_data: [number, number, number][] | null;
+  heart_rate_data: FitRecord[] | null;
+  route_data: [number, number][] | null;
   notes: string | null;
   cardiac_drift: number | null;
   efficiency_factor: number | null;
@@ -263,11 +264,12 @@ export function CardioDetailView({ workout, profile }: { workout: CardioData; pr
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" vertical={false} />
-                <XAxis
-                  dataKey="t"
-                  type="number"
-                  domain={["auto", "auto"]}
-                  tickFormatter={(t) => {
+                 <XAxis
+                   dataKey="timestamp"
+                   type="number"
+                   domain={["auto", "auto"]}
+                   tickFormatter={(t) => {
+
                     const min = Math.floor(t / 60);
                     const sec = t % 60;
                     return min > 0 ? `${min}:${sec.toString().padStart(2, "0")}` : `${sec}s`;
@@ -292,18 +294,20 @@ export function CardioDetailView({ workout, profile }: { workout: CardioData; pr
                      const sec = t % 60;
                      return `Tiempo: ${min > 0 ? `${min}:${sec.toString().padStart(2, "0")}` : `${sec}s`}`;
                    }}
-                    formatter={(value: number) => [`${value ?? 0} lpm`, "FC"]}
+                     formatter={(value: any) => [`${value ?? 0} lpm`, "FC"]}
+
 
 
                 />
-                <Line
-                  type="monotone"
-                  dataKey="v"
-                  stroke="url(#hrGradient)"
-                  strokeWidth={1.5}
-                  dot={false}
-                  animationDuration={1000}
-                />
+                 <Line
+                   type="monotone"
+                   dataKey="heartRate"
+                   stroke="url(#hrGradient)"
+                   strokeWidth={1.5}
+                   dot={false}
+                   animationDuration={1000}
+                 />
+
               </LineChart>
             </ResponsiveContainer>
           </div>
